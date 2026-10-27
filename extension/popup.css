@@ -42,7 +42,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 10; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 10;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+}
+#veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); background: rgba(var(--dk), .2); }
 
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
 
@@ -294,3 +298,4 @@ body.simple .core svg, body.simple .arc, body.simple .brand img { filter: none; 
 body.simple .pulse { display: none; }
 body.simple h1, body.simple .status, body.simple .speed-row strong, body.simple .speed-row > div + div strong { text-shadow: none; }
 body.simple #serverList { -webkit-backdrop-filter: none; backdrop-filter: none; background: #06130c; }
+body.simple #veil { display: none; }

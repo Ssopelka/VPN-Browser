@@ -10,10 +10,17 @@
     error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },
   };
   const LAYERS = [
-    { n: 9, r0: 6, r1: 13, scale: 3, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0, wobble: 1.6 },
-    { n: 12, r0: 8, r1: 22, scale: 1.5, speed: 1, alpha: 1, bright: 0.95, mouse: 1, wobble: 2.4 },
-    { n: 5, r0: 20, r1: 32, scale: 2, speed: 1.3, alpha: 0.85, bright: 1.05, mouse: 1.6, wobble: 3 },
+    { scale: 3, alpha: 0.5, bright: 0.65, wobble: 1.6, groups: [{ n: 9, r0: 6, r1: 13, speed: 0.6, mouse: 0, depth: 0 }] },
+    {
+      scale: 1.5, alpha: 1, bright: 0.95, wobble: 2.6,
+      groups: [
+        { n: 12, r0: 8, r1: 22, speed: 1, mouse: 1, depth: 0 },
+        { n: 5, r0: 20, r1: 32, speed: 1.3, mouse: 1.6, depth: 1 },
+      ],
+    },
   ];
+  const PUSH = 520, SPRING = 14, DAMP = 7.5, REACH = 150;
+
 
   let enabled = true;
   try { enabled = localStorage.getItem("simple") !== "1"; } catch {}
@@ -46,26 +53,30 @@
     canvas.height = fh;
     const sctx = canvas.getContext("2d");
     const blobs = [];
-    for (let i = 0; i < cfg.n; i++) {
-      blobs.push({
-        cx: W * (0.05 + 0.9 * Math.random()),
-        cy: H * (0.05 + 0.9 * Math.random()),
-        ax: 12 + Math.random() * 38,
-        ay: H * (0.15 + Math.random() * 0.3),
-        wx: 0.14 + Math.random() * 0.2,
-        wy: 0.08 + Math.random() * 0.14,
-        px: Math.random() * 6.28,
-        py: Math.random() * 6.28,
-        r: cfg.r0 + Math.random() * (cfg.r1 - cfg.r0),
-        wob: 0.5 + Math.random() * 0.7,
-        ph: Math.random() * 6.28,
-        x: 0, y: 0, ox: 0, oy: 0, vx: 0, vy: 0, c: 1, s: 0, el: 1, rr: 1,
-      });
+    for (const g of cfg.groups) {
+      for (let i = 0; i < g.n; i++) {
+        blobs.push({
+          cx: W * (0.05 + 0.9 * Math.random()),
+          cy: H * (0.05 + 0.9 * Math.random()),
+          ax: 12 + Math.random() * 38,
+          ay: H * (0.15 + Math.random() * 0.3),
+          wx: 0.14 + Math.random() * 0.2,
+          wy: 0.08 + Math.random() * 0.14,
+          px: Math.random() * 6.28,
+          py: Math.random() * 6.28,
+          r: g.r0 + Math.random() * (g.r1 - g.r0),
+          speed: g.speed, mk: g.mouse, depth: g.depth,
+          wob: 0.5 + Math.random() * 0.7,
+          ph: Math.random() * 6.28,
+          x: 0, y: 0, ox: 0, oy: 0, ovx: 0, ovy: 0, vx: 0, vy: 0, c: 1, s: 0, el: 1, sq: 1, rr: 1,
+        });
+      }
     }
     return {
       cfg, fw, fh, canvas, sctx, blobs,
       img: sctx.createImageData(fw, fh),
       field: new Float32Array(fw * fh),
+      depthF: new Float32Array(fw * fh),
       rowW: new Float32Array(fh),
       colW: new Float32Array(fw),
     };
@@ -92,20 +103,26 @@
   function step(dt) {
     clock += dt * THEMES[mode].speed;
     for (const L of layers) {
-      const { speed, mouse: mk } = L.cfg;
       for (const b of L.blobs) {
+        const speed = b.speed, mk = b.mk;
         const tx = b.cx + Math.sin(clock * speed * b.wx + b.px) * b.ax;
         const ty = b.cy + Math.sin(clock * speed * b.wy + b.py) * b.ay;
-        const dx = tx - mouse.x, dy = ty - mouse.y;
-        const d2 = dx * dx + dy * dy;
-        if (mk && d2 < 130 * 130) {
-          const d = Math.sqrt(d2) || 1;
-          const k = (1 - d / 130) * 38 * mk;
-          b.ox += (dx / d) * k;
-          b.oy += (dy / d) * k;
+        let fx = 0, fy = 0;
+        if (mk) {
+          const dx = b.x - mouse.x, dy = b.y - mouse.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < REACH * REACH) {
+            const d = Math.sqrt(d2) || 1;
+            const w = smooth(0, 1, 1 - d / REACH);
+            fx = (dx / d) * w * PUSH * mk;
+            fy = (dy / d) * w * PUSH * mk;
+          }
         }
-        b.ox *= 0.9;
-        b.oy *= 0.9;
+        const h = Math.min(dt, 0.05);
+        b.ovx += (fx - SPRING * b.ox - DAMP * b.ovx) * h;
+        b.ovy += (fy - SPRING * b.oy - DAMP * b.ovy) * h;
+        b.ox += b.ovx * h;
+        b.oy += b.ovy * h;
         if (dt > 0 && b.tx !== undefined) {
           b.vx += ((tx - b.tx) / dt - b.vx) * 0.12;
           b.vy += ((ty - b.ty) / dt - b.vy) * 0.12;
@@ -124,6 +141,7 @@
         b.el = 1 + Math.min(0.22, sp / 260) + 0.05 * Math.sin(clock * b.wob + b.ph);
         const pulse = 1 + 0.06 * Math.sin(clock * b.wob * 1.7 + b.ph * 2);
         b.rr = b.r * b.r * pulse * pulse;
+        b.sq = Math.sqrt(b.el);
       }
     }
     for (const p of dust) {
@@ -134,7 +152,7 @@
   }
 
   function renderLayer(L) {
-    const { fw, fh, field, blobs, img, cfg, rowW, colW } = L;
+    const { fw, fh, field, depthF, blobs, img, cfg, rowW, colW } = L;
     const sc = cfg.scale;
     const n = blobs.length;
     for (let j = 0; j < fh; j++) rowW[j] = Math.sin(j * sc * 0.05 + clock * 0.9) * cfg.wobble;
@@ -143,14 +161,17 @@
       const wx = rowW[j];
       for (let i = 0; i < fw; i++) {
         const px = i * sc + wx, py = j * sc + colW[i];
-        let f = 0;
+        let f = 0, fd = 0;
         for (let k = 0; k < n; k++) {
           const b = blobs[k];
           const dx = px - b.x, dy = py - b.y;
-          const al = (dx * b.c + dy * b.s) / b.el, pp = (dy * b.c - dx * b.s) * Math.sqrt(b.el);
-          f += b.rr / (al * al + pp * pp + 40);
+          const al = (dx * b.c + dy * b.s) / b.el, pp = (dy * b.c - dx * b.s) * b.sq;
+          const t = b.rr / (al * al + pp * pp + 40);
+          f += t;
+          if (b.depth) fd += t;
         }
         field[j * fw + i] = f;
+        depthF[j * fw + i] = f > 0 ? fd / f : 0;
       }
     }
     const [cr, cg, cb] = cur.c;
@@ -176,7 +197,8 @@
         const inner = smooth(1.3, 3.4, f);
         const ring = smooth(0.9, 1.03, f) * (1 - smooth(1.03, 1.22, f));
         const dark = 1 - 0.4 * ring;
-        const m = (0.14 + 0.4 * core + rim * 0.5 + key * 0.22 * rim + fill * 0.12 * rim) * cfg.bright * dark;
+        const dm = depthF[idx];
+        const m = (0.14 + 0.4 * core + rim * 0.5 + key * 0.22 * rim + fill * 0.12 * rim) * (cfg.bright + dm * 0.12) * dark;
         const glow = inner * 26;
         data[o] = Math.min(255, cr * m + spec * 210 + spec2 * 120 + glow * (cr / 255) + 16);
         data[o + 1] = Math.min(255, cg * m + spec * 255 + spec2 * 150 + glow * (cg / 255) + 22);
@@ -229,7 +251,6 @@
     ctx.globalAlpha = 1;
 
     renderLayer(layers[1]);
-    renderLayer(layers[2]);
 
     const glow = ctx.createLinearGradient(0, H * 0.6, 0, H);
     glow.addColorStop(0, `rgba(${r},${g},${b},0)`);

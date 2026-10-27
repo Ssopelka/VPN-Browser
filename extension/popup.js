@@ -77,7 +77,10 @@ function renderState(s) {
 function renderMeta() {
   if (!snap || snap.state.status !== "on") { $("meta").textContent = ""; return; }
   const t = snap.traffic.sessStart ? fmtDuration(Date.now() - snap.traffic.sessStart) : "";
-  $("meta").textContent = [ip && "IP " + ip, t].filter(Boolean).join("  ·  ");
+  const h = snap.state.health;
+  const ping = h ? (h.ok ? "пинг " + h.ms + " мс" : "⚠ нет интернета через VPN") : "";
+  $("meta").textContent = [ip && "IP " + ip, t, ping].filter(Boolean).join("  ·  ");
+  $("meta").classList.toggle("warn", !!(h && !h.ok));
 }
 
 function renderTraffic(t, sp) {
@@ -191,7 +194,7 @@ function saveForm() {
     snap = await send({ type: "saveSettings", settings });
   }, 400);
 }
-document.querySelectorAll("#settings input, #settings textarea").forEach((el) => el.addEventListener("input", saveForm));
+document.querySelectorAll("#settings input, #settings textarea, #autoConnect").forEach((el) => el.addEventListener("input", saveForm));
 
 $("updList").addEventListener("click", async () => {
   const b = $("updList");
@@ -217,7 +220,14 @@ async function speedTest() {
   speedTesting = true;
   const out = { ping: "—", down: "—", up: "—" };
   const show = () => {
-    res.innerHTML = `<div class="card">ПИНГ<b>${out.ping}</b></div><div class="card">↓ МБИТ/С<b>${out.down}</b></div><div class="card">↑ МБИТ/С<b>${out.up}</b></div>`;
+    res.replaceChildren(...[["ПИНГ", out.ping], ["↓ МБИТ/С", out.down], ["↑ МБИТ/С", out.up]].map(([k, v]) => {
+      const d = document.createElement("div");
+      d.className = "card";
+      const b = document.createElement("b");
+      b.textContent = v;
+      d.append(k, b);
+      return d;
+    }));
   };
   try {
     btn.textContent = "Пинг…"; show();
@@ -248,7 +258,10 @@ async function speedTest() {
     const ms = await timed(() => fetch("https://speed.cloudflare.com/__up", { method: "POST", body, cache: "no-store" }));
     out.up = ((body.length * 8) / 1e6 / (ms / 1000)).toFixed(1); show();
   } catch (e) {
-    res.innerHTML = `<div class="card err">Ошибка замера: ${String(e.message || e)}</div>`;
+    const d = document.createElement("div");
+    d.className = "card err";
+    d.textContent = "Ошибка замера: " + String(e.message || e);
+    res.replaceChildren(d);
   }
   btn.disabled = false;
   speedTesting = false;

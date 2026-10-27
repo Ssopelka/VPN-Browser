@@ -1,2 +1,8 @@
-host/core-config.json
-host/bin/
+# генерируется установщиком / сборкой
+/dist/
+*.exe
+*.exe~
+*.old
+*.new
+# локальные конфиги с ключами сервера не коммитим
+core-config.json

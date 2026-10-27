@@ -8,13 +8,12 @@ import (
 
 var version = "dev"
 
-// ID расширения фиксирован полем "key" в manifest.json — только оно может запускать хост.
+// ID расширения задаётся полем key в manifest.json.
 const extID = "aakkclmhpdfjajdbclhfaeodkbfpnakj"
 const hostName = "net.stealthsurf.vpn_host"
 
 func main() {
 	args := os.Args[1:]
-	// Браузер запускает хост с аргументом chrome-extension://<id>/
 	for _, a := range args {
 		if strings.HasPrefix(a, "chrome-extension://") {
 			if a != "chrome-extension://"+extID+"/" {

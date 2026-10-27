@@ -24,13 +24,12 @@ import (
 	"github.com/sagernet/sing-box/protocol/vmess"
 )
 
-// Урезанный реестр: только клиентские протоколы, которые поддерживает расширение, и локальный mixed-inbound.
-// Никаких tun/api/tailscale/ssh/tor — меньше размер и поверхность атаки.
+// Реестр с клиентскими протоколами расширения и локальным mixed-inbound.
 func boxContext(ctx context.Context) context.Context {
 	in := inbound.NewRegistry()
 	mixed.RegisterInbound(in)
 	socks.RegisterInbound(in)
-	shadowsocks.RegisterInbound(in) // нужен тестам; в рабочем конфиге не используется
+	shadowsocks.RegisterInbound(in) // для тестов
 	vless.RegisterInbound(in)
 	vmess.RegisterInbound(in)
 	trojan.RegisterInbound(in)

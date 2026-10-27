@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// Протокол native messaging: 4 байта длины (little-endian) + JSON.
+// Native messaging: 4 байта длины (little-endian) и JSON. В stdout пишем только сообщения протокола.
 const maxIncoming = 1 << 20
 
 type nmConn struct {
@@ -33,7 +33,6 @@ func (c *nmConn) read(v any) error {
 	return json.Unmarshal(buf, v)
 }
 
-// send безопасен для вызова из нескольких горутин. В stdout нельзя писать ничего, кроме сообщений протокола.
 func (c *nmConn) send(v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {

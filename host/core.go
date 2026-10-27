@@ -22,7 +22,6 @@ import (
 
 const maxSubscription = 5 << 20
 
-// core — встроенное ядро sing-box. Отдельного процесса и clash_api нет: статистику читаем из памяти.
 type core struct {
 	cancel   context.CancelFunc
 	instance *box.Box
@@ -80,7 +79,6 @@ func fetchText(src string) (string, error) {
 	return string(b), nil
 }
 
-// buildConfig возвращает JSON-конфиг sing-box: локальный mixed-inbound только на 127.0.0.1, со случайным логином и паролем.
 func buildConfig(link string, port int, user, pass string) ([]byte, string, string, error) {
 	ob, name, err := parseLink(link)
 	if err != nil {
@@ -159,7 +157,6 @@ func (c *core) stop() {
 	_ = c.instance.Close()
 }
 
-// health делает запрос через локальный прокси и возвращает задержку.
 func (c *core) health() (time.Duration, error) {
 	pu := &url.URL{Scheme: "http", User: url.UserPassword(c.User, c.Pass), Host: fmt.Sprintf("127.0.0.1:%d", c.Port)}
 	cl := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(pu)}}

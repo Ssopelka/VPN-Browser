@@ -13,7 +13,6 @@ type startMsg struct {
 	Port int    `json:"port"`
 }
 
-// runHost обслуживает native messaging: start/stop от расширения, события started/stats/health/error в ответ.
 func runHost() {
 	nm := &nmConn{in: os.Stdin, out: os.Stdout}
 	var (
@@ -29,7 +28,6 @@ func runHost() {
 	}
 	defer stop()
 
-	// статистика раз в секунду, пока ядро работает
 	go func() {
 		for range time.Tick(time.Second) {
 			mu.Lock()
@@ -45,7 +43,7 @@ func runHost() {
 	for {
 		var m startMsg
 		if err := nm.read(&m); err != nil {
-			return // браузер закрыл канал — гасим ядро и выходим
+			return
 		}
 		switch m.Cmd {
 		case "stop":

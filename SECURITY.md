@@ -17,7 +17,7 @@
 - Ссылка-подписка и ключ хранятся в `chrome.storage.local` в открытом виде, как и у большинства расширений.
 - Подписку по `http://` стоит заменить на `https://`.
 - Расширению нужны `<all_urls>` и `webRequest` для проксирования. Содержимое страниц оно не читает.
-- Внешние запросы: `ipwho.is` и `api.ipify.org` (показ IP и страны выхода), `api.github.com` и `github.com` (обновление хоста, запросы делает хост напрямую), `speed.cloudflare.com` (замер скорости), `cp.cloudflare.com` (проверка связи через VPN), `raw.githubusercontent.com` и `community.antifilter.download` (списки блокировок).
+- Внешние запросы: `ipwho.is` и `api.ipify.org` (показ IP и флага страны выхода), `api.github.com` и `github.com` (обновление хоста, запросы делает хост напрямую), `speed.cloudflare.com` (замер скорости), `cp.cloudflare.com` (проверка связи через VPN), `raw.githubusercontent.com` и `community.antifilter.download` (списки блокировок).
 - Файл экспорта настроек содержит ссылку-подписку в открытом виде.
 - Установщик не подписан.
 

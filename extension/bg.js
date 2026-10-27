@@ -10,91 +10,10 @@
     error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },
   };
   const LAYERS = [
-    { n: 6, r0: 8, r1: 18, scale: 2, speed: 0.7, alpha: 0.9, bright: 0.8, mouse: 0.6, land: true },
-    { n: 9, r0: 6, r1: 13, scale: 4, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0 },
-    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 0.9, mouse: 1 },
-    { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1, mouse: 1.6 },
+    { n: 9, r0: 6, r1: 13, scale: 3, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0, wobble: 1.6, bubbles: 0 },
+    { n: 12, r0: 8, r1: 22, scale: 1.5, speed: 1, alpha: 1, bright: 0.95, mouse: 1, wobble: 2.4, bubbles: 2 },
+    { n: 5, r0: 20, r1: 32, scale: 2, speed: 1.3, alpha: 0.85, bright: 1.05, mouse: 1.6, wobble: 3, bubbles: 3 },
   ];
-
-
-  const WORLD_VIEW = { z: 0.12, lon: 10, lat: 18 };
-  const ZOOM_TO = 0.82;
-  const LAND_K = 2.6;
-  let mapPath = null;
-  let target = null;
-  const view = { ...WORLD_VIEW };
-  let lock = 0;
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  function buildMap() {
-    if (!Array.isArray(window.WORLD)) return;
-    mapPath = new Path2D();
-    for (const r of window.WORLD) {
-      mapPath.moveTo(r[0] / 10, r[1] / 10);
-      for (let i = 2; i < r.length; i += 2) {
-        if (Math.abs(r[i] - r[i - 2]) > 1800) mapPath.moveTo(r[i] / 10, r[i + 1] / 10);
-        else mapPath.lineTo(r[i] / 10, r[i + 1] / 10);
-      }
-      mapPath.closePath();
-    }
-  }
-
-  function stepView(dt) {
-    const goal = target ? { z: ZOOM_TO, lon: target.lon, lat: target.lat } : WORLD_VIEW;
-    const kz = reduced ? 1 : 1 - Math.exp(-dt * 2.1);
-    const kp = reduced ? 1 : 1 - Math.exp(-dt * 3.2);
-    view.z += (goal.z - view.z) * kz;
-    view.lon += (goal.lon - view.lon) * kp;
-    view.lat += (goal.lat - view.lat) * kp;
-    lock = target ? Math.min(1, Math.max(0, (view.z - WORLD_VIEW.z) / (ZOOM_TO - WORLD_VIEW.z))) : 0;
-  }
-
-  const viewScale = () => (W / 360) * Math.exp(view.z * 2.4);
-  const powerBtn = document.getElementById("power");
-  function focus() {
-    const r = powerBtn && powerBtn.getBoundingClientRect();
-    const by = r && r.width ? r.top + r.height / 2 : H * 0.31;
-    const bx = r && r.width ? r.left + r.width / 2 : W / 2;
-    return { x: W / 2 + (bx - W / 2) * lock, y: H * 0.45 + (by - H * 0.45) * lock };
-  }
-
-  function updateLand(L) {
-    if (!mapPath) return;
-    const { mctx, fw, fh, land } = L;
-    const sc = L.cfg.scale, s = viewScale(), f = focus();
-    mctx.clearRect(0, 0, fw, fh);
-    mctx.save();
-    mctx.filter = "blur(1.8px)";
-    mctx.translate((f.x - (view.lon + 180) * s) / sc, (f.y - (90 - view.lat) * s) / sc);
-    mctx.scale(s / sc, s / sc);
-    mctx.fillStyle = "#fff";
-    mctx.fill(mapPath);
-    mctx.restore();
-    const d = mctx.getImageData(0, 0, fw, fh).data;
-    for (let i = 0; i < land.length; i++) land[i] = d[i * 4 + 3] / 255;
-  }
-
-  function drawPin(r, g, b) {
-    if (!target || lock < 0.2) return;
-    const s = viewScale(), f = focus();
-    const px = f.x + (target.lon - view.lon) * s, py = f.y + (view.lat - target.lat) * s;
-    const a = Math.min(1, (lock - 0.2) / 0.5);
-    for (let i = 0; i < 2; i++) {
-      const t = (clock * 0.5 + i * 0.5) % 1;
-      ctx.strokeStyle = `rgba(${r},${g},${b},${(1 - t) * 0.85 * a})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(px, py, 6 + t * 34, 0, 6.2832);
-      ctx.stroke();
-    }
-    ctx.fillStyle = `rgba(255,255,255,${a})`;
-    ctx.shadowColor = `rgb(${r},${g},${b})`;
-    ctx.shadowBlur = 16;
-    ctx.beginPath();
-    ctx.arc(px, py, 4.5, 0, 6.2832);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  }
 
   let W = 0, H = 0;
   let layers = [], dust = [];
@@ -136,18 +55,17 @@
         px: Math.random() * 6.28,
         py: Math.random() * 6.28,
         r: cfg.r0 + Math.random() * (cfg.r1 - cfg.r0),
+        spin: (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.3),
         x: 0, y: 0, ox: 0, oy: 0,
       });
     }
-    const L = { cfg, fw, fh, canvas, sctx, img: sctx.createImageData(fw, fh), field: new Float32Array(fw * fh), blobs };
-    if (cfg.land) {
-      const m = document.createElement("canvas");
-      m.width = fw;
-      m.height = fh;
-      L.mctx = m.getContext("2d", { willReadFrequently: true });
-      L.land = new Float32Array(fw * fh);
-    }
-    return L;
+    return {
+      cfg, fw, fh, canvas, sctx, blobs,
+      img: sctx.createImageData(fw, fh),
+      field: new Float32Array(fw * fh),
+      rowW: new Float32Array(fh),
+      colW: new Float32Array(fw),
+    };
   }
 
   function resize() {
@@ -197,57 +115,84 @@
   }
 
   function renderLayer(L) {
-    const { fw, fh, field, blobs, img, cfg } = L;
+    const { fw, fh, field, blobs, img, cfg, rowW, colW } = L;
     const sc = cfg.scale;
     const n = blobs.length;
-    const land = L.land;
-    if (land) updateLand(L);
-    const base = layers[0];
+    for (let j = 0; j < fh; j++) rowW[j] = Math.sin(j * sc * 0.05 + clock * 0.9) * cfg.wobble;
+    for (let i = 0; i < fw; i++) colW[i] = Math.sin(i * sc * 0.045 + clock * 0.7 + 1.3) * cfg.wobble;
     for (let j = 0; j < fh; j++) {
-      const py = j * sc;
+      const wx = rowW[j];
       for (let i = 0; i < fw; i++) {
-        const px = i * sc;
+        const px = i * sc + wx, py = j * sc + colW[i];
         let f = 0;
         for (let k = 0; k < n; k++) {
           const b = blobs[k];
           const dx = px - b.x, dy = py - b.y;
           f += (b.r * b.r) / (dx * dx + dy * dy + 40);
         }
-        field[j * fw + i] = land ? f + land[j * fw + i] * LAND_K : f;
+        field[j * fw + i] = f;
       }
     }
     const [cr, cg, cb] = cur.c;
     const data = img.data;
-    const lx = -0.55, ly = -0.8;
     for (let j = 0; j < fh; j++) {
+      const jm = Math.max(0, j - 1) * fw, jp = Math.min(fh - 1, j + 1) * fw, jr = j * fw;
       for (let i = 0; i < fw; i++) {
-        const idx = j * fw + i;
+        const idx = jr + i;
         const f = field[idx];
         const o = idx * 4;
-        const edge = smooth(0.87, 1.07, f);
+        const edge = smooth(0.88, 1.08, f);
         if (edge <= 0) { data[o + 3] = 0; continue; }
-        const fx = field[j * fw + Math.min(fw - 1, i + 1)] - field[j * fw + Math.max(0, i - 1)];
-        const fy = field[Math.min(fh - 1, j + 1) * fw + i] - field[Math.max(0, j - 1) * fw + i];
+        const fx = field[jr + Math.min(fw - 1, i + 1)] - field[jr + Math.max(0, i - 1)];
+        const fy = field[jp + i] - field[jm + i];
         const len = Math.hypot(fx, fy) + 1e-4;
         const nx = -fx / len, ny = -fy / len;
         const rim = Math.exp(-(f - 1) * 2.4);
-        const diff = Math.max(0, nx * lx + ny * ly);
-        const spec = Math.pow(diff, 14) * rim;
-        const core = Math.min(1, f / 3.2);
-        const m = (0.16 + 0.42 * core + rim * 0.55 + diff * 0.25 * rim) * cfg.bright;
-        data[o] = Math.min(255, cr * m + spec * 210 + 18);
-        data[o + 1] = Math.min(255, cg * m + spec * 255 + 24);
-        data[o + 2] = Math.min(255, cb * m + spec * 215 + 18);
-        let a = 255 * edge * cfg.alpha * Math.min(1, 0.26 + 0.22 * core + rim * 0.5 + spec * 0.4);
-        if (!land && base.land) {
-          const bi = Math.min(base.fh - 1, Math.floor((j * sc) / base.cfg.scale)) * base.fw + Math.min(base.fw - 1, Math.floor((i * sc) / base.cfg.scale));
-          a *= 1 - 0.9 * Math.min(1, base.land[bi] * 1.4);
-        }
-        data[o + 3] = a;
+        const key = Math.max(0, nx * -0.55 + ny * -0.8);
+        const fill = Math.max(0, nx * 0.6 + ny * 0.7);
+        const spec = Math.pow(key, 16) * rim;
+        const spec2 = Math.pow(fill, 9) * rim * 0.45;
+        const core = Math.min(1, f / 3.4);
+        const inner = smooth(1.3, 3.4, f);
+        const ring = smooth(0.9, 1.03, f) * (1 - smooth(1.03, 1.22, f));
+        const dark = 1 - 0.4 * ring;
+        const m = (0.14 + 0.4 * core + rim * 0.5 + key * 0.22 * rim + fill * 0.12 * rim) * cfg.bright * dark;
+        const glow = inner * 26;
+        data[o] = Math.min(255, cr * m + spec * 210 + spec2 * 120 + glow * (cr / 255) + 16);
+        data[o + 1] = Math.min(255, cg * m + spec * 255 + spec2 * 150 + glow * (cg / 255) + 22);
+        data[o + 2] = Math.min(255, cb * m + spec * 215 + spec2 * 130 + glow * (cb / 255) + 16);
+        data[o + 3] = 255 * edge * cfg.alpha * Math.min(1, 0.22 + 0.26 * core + rim * 0.5 + spec * 0.4 + inner * 0.12);
       }
     }
     L.sctx.putImageData(img, 0, 0);
     ctx.drawImage(L.canvas, 0, 0, fw * sc, fh * sc);
+    if (cfg.bubbles) drawBubbles(L);
+  }
+
+  function drawBubbles(L) {
+    const { blobs, cfg, field, fw, fh } = L;
+    const sc = cfg.scale;
+    for (const b of blobs) {
+      if (b.r < 11) continue;
+      for (let k = 0; k < cfg.bubbles; k++) {
+        const ang = clock * 0.35 * b.spin + k * 2.4 + b.px;
+        const off = b.r * (0.22 + 0.16 * k);
+        const x = b.x + Math.cos(ang) * off, y = b.y + Math.sin(ang * 1.3) * off * 0.8;
+        const fi = Math.min(fw - 1, Math.max(0, Math.round(x / sc))), fj = Math.min(fh - 1, Math.max(0, Math.round(y / sc)));
+        const inside = smooth(1.6, 2.6, field[fj * fw + fi]);
+        if (inside <= 0) continue;
+        const br = b.r * (0.13 + 0.05 * k);
+        const gr = ctx.createRadialGradient(x - br * 0.3, y - br * 0.35, br * 0.05, x, y, br);
+        gr.addColorStop(0, `rgba(255,255,255,${0.34 * inside})`);
+        gr.addColorStop(0.3, `rgba(255,255,255,${0.05 * inside})`);
+        gr.addColorStop(0.8, `rgba(255,255,255,0)`);
+        gr.addColorStop(1, `rgba(255,255,255,${0.3 * inside})`);
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.arc(x, y, br, 0, 6.2832);
+        ctx.fill();
+      }
+    }
   }
 
   function lerpTo(cur3, tgt3, k) {
@@ -272,7 +217,6 @@
     const [r, g, b] = cur.c.map(Math.round);
 
     step(dt);
-    stepView(dt);
 
     const bg = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, H * 0.9);
     bg.addColorStop(0, `rgb(${cur.bg0.map(Math.round)})`);
@@ -283,7 +227,6 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     renderLayer(layers[0]);
-    renderLayer(layers[1]);
 
     for (const p of dust) {
       const s = p.s * (1 + Math.sin(clock * 1.2 + p.ph) * 0.12) * 2;
@@ -292,9 +235,8 @@
     }
     ctx.globalAlpha = 1;
 
+    renderLayer(layers[1]);
     renderLayer(layers[2]);
-    renderLayer(layers[3]);
-    drawPin(r, g, b);
 
     const glow = ctx.createLinearGradient(0, H * 0.6, 0, H);
     glow.addColorStop(0, `rgba(${r},${g},${b},0)`);
@@ -306,10 +248,9 @@
   function start() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; }
 
-  buildMap();
   resize();
   paintSprite();
-  if (reduced) { frame(1e9); stop(); }
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { frame(1e9); stop(); }
   else start();
 
   document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
@@ -317,9 +258,4 @@
   addEventListener("mouseleave", () => { mouse.x = mouse.y = -999; });
 
   window.setBgMode = (m) => { mode = THEMES[m] ? m : "off"; };
-  window.setBgTarget = (t) => {
-    const ok = t && Number.isFinite(t.lat) && Number.isFinite(t.lon);
-    target = ok ? { lat: Math.max(-80, Math.min(80, t.lat)), lon: t.lon } : null;
-    if (reduced) { frame(1e9); stop(); }
-  };
 })();

@@ -52,19 +52,6 @@ function flagImg(cc) {
   return img;
 }
 
-function placeOnMap() {
-  const on = snap && snap.state.status === "on";
-  if (!window.setBgTarget) return;
-  if (!on) return window.setBgTarget(null);
-  const c = geo || (serverCode() && window.CENTROIDS && window.CENTROIDS[serverCode()] && { lat: window.CENTROIDS[serverCode()][0], lon: window.CENTROIDS[serverCode()][1] });
-  window.setBgTarget(c || null);
-}
-
-function serverCode() {
-  const s = snap && snap.state.status === "on" ? snap.state.server : "";
-  return (s && splitFlag(s).cc) || null;
-}
-
 function renderState(s) {
   document.body.className = s.status;
   window.setBgMode?.(s.status);
@@ -88,7 +75,6 @@ function renderState(s) {
     }
   }
   if (s.status === "on") loadIp(); else { ip = ""; ipLoaded = false; geo = null; }
-  placeOnMap();
   renderMeta();
 }
 
@@ -321,11 +307,11 @@ async function loadIp() {
   ipLoaded = true;
   try {
     try {
-      const r = await fetch("https://ipwho.is/?fields=success,ip,country_code,latitude,longitude", { cache: "no-store" });
+      const r = await fetch("https://ipwho.is/?fields=success,ip,country_code", { cache: "no-store" });
       const j = await r.json();
       if (!j.success) throw new Error("geo");
       ip = j.ip;
-      geo = { cc: String(j.country_code || "").toLowerCase(), lat: j.latitude, lon: j.longitude };
+      geo = { cc: String(j.country_code || "").toLowerCase() };
     } catch {
       const r = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
       ip = (await r.json()).ip;

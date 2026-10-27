@@ -21,8 +21,8 @@ body {
   --glass: linear-gradient(150deg, rgba(var(--hi), .15) 0%, rgba(var(--hi), .04) 26%, rgba(var(--hi), 0) 50%),
            radial-gradient(130% 90% at 100% 100%, rgba(var(--rgb), .07), rgba(var(--rgb), 0) 58%),
            linear-gradient(180deg, rgba(var(--rgb), .015), rgba(var(--dk), .05));
-  --blur: blur(16px) saturate(230%) brightness(1.12) contrast(1.08);
-  --lens: url(#lens) blur(16px) saturate(230%) brightness(1.12) contrast(1.08);
+  --blur: blur(6px) saturate(230%) brightness(1.12) contrast(1.08);
+  --lens: url(#lens) blur(6px) saturate(230%) brightness(1.12) contrast(1.08);
   --rim: inset 0 1.5px 0 rgba(var(--hi), .9), inset 1.5px 0 0 rgba(var(--hi), .4), inset 0 -1.5px 0 rgba(var(--rgb), .38),
          inset 0 0 14px rgba(var(--rgb), .05);
   --lift: 0 10px 24px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.45);

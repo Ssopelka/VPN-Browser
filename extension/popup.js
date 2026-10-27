@@ -33,6 +33,7 @@ document.querySelectorAll(".tab").forEach((b, i) =>
   b.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelector("nav").classList.toggle("s2", i === 1);
+    if (i === 1) refreshLog();
     document.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === b.dataset.tab));
   })
 );
@@ -106,8 +107,121 @@ function renderList(info, local) {
   $("listInfo").textContent = `${local || info.count} доменов · ${when}`;
 }
 
+function renderServers(s) {
+  const list = s.servers || [];
+  const box = $("serverBox");
+  box.hidden = list.length < 2;
+  if (box.hidden) return;
+  const sel = $("serverSel");
+  const cur = s.settings.server || (s.state.status === "on" ? s.state.server : "") || list[0].name;
+  const sig = list.map((x) => x.name).join("|") + "#" + cur;
+  if (sel.dataset.sig === sig) return;
+  sel.dataset.sig = sig;
+  sel.replaceChildren(...list.map((x) => {
+    const o = document.createElement("option");
+    o.value = x.name;
+    o.textContent = splitFlag(x.name).text + " · " + x.type;
+    o.selected = x.name === cur;
+    return o;
+  }));
+}
+
+$("serverSel").addEventListener("change", async () => {
+  snap = await send({ type: "saveSettings", settings: { server: $("serverSel").value } });
+  if (snap.state.status === "on" || snap.state.status === "connecting") render(await send({ type: "connect" }));
+});
+
+let tab = null;
+
+async function loadTab() {
+  try {
+    const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const u = new URL(t.url);
+    tab = /^https?:$/.test(u.protocol) ? { id: t.id, host: u.hostname.replace(/^www\./, "").toLowerCase() } : null;
+  } catch { tab = null; }
+  renderSite();
+}
+
+const hostLines = (txt) => String(txt || "").split(/\r?\n/).map((l) => l.trim().toLowerCase()).filter(Boolean);
+
+function siteRule(s) {
+  if (hostLines(s.exclude).includes(tab.host)) return "direct";
+  if (hostLines(s.include).includes(tab.host)) return "vpn";
+  return "auto";
+}
+
+function renderSite() {
+  const box = $("siteBox");
+  box.hidden = !tab || !snap;
+  if (box.hidden) return;
+  $("siteName").textContent = tab.host;
+  $("siteName").title = tab.host;
+  const r = siteRule(snap.settings);
+  const btns = [...document.querySelectorAll("#siteSeg button")];
+  btns.forEach((b) => b.classList.toggle("active", b.dataset.r === r));
+  requestAnimationFrame(() => {
+    const a = btns.find((b) => b.dataset.r === r);
+    const ink = document.querySelector(".seg3-ink");
+    ink.style.left = a.offsetLeft + "px";
+    ink.style.width = a.offsetWidth + "px";
+  });
+}
+
+document.querySelectorAll("#siteSeg button").forEach((b) =>
+  b.addEventListener("click", async () => {
+    const s = snap.settings;
+    const strip = (txt) => String(txt || "").split(/\r?\n/).filter((l) => l.trim().toLowerCase() !== tab.host).join("\n").trim();
+    let include = strip(s.include), exclude = strip(s.exclude);
+    if (b.dataset.r === "vpn") include = (include ? include + "\n" : "") + tab.host;
+    if (b.dataset.r === "direct") exclude = (exclude ? exclude + "\n" : "") + tab.host;
+    snap = await send({ type: "saveSettings", settings: { include, exclude } });
+    $("include").value = snap.settings.include;
+    $("exclude").value = snap.settings.exclude;
+    renderSite();
+    chrome.tabs.reload(tab.id);
+  })
+);
+
+const logTime = (t) => new Date(t).toLocaleTimeString("ru-RU");
+
+async function refreshLog() {
+  const entries = await send({ type: "getLog" });
+  const v = $("logView");
+  v.value = entries.slice(-80).map((e) => logTime(e.t) + "  " + e.m).join("\n");
+  v.scrollTop = v.scrollHeight;
+}
+
+$("logRefresh").addEventListener("click", refreshLog);
+$("logClear").addEventListener("click", async () => {
+  await send({ type: "clearLog" });
+  $("logView").value = "";
+});
+$("logExport").addEventListener("click", async () => {
+  const entries = await send({ type: "getLog" });
+  const s = snap.settings;
+  const head = [
+    "VPN Terminal " + chrome.runtime.getManifest().version,
+    navigator.userAgent,
+    "Статус: " + snap.state.status,
+    `Режим: ${s.mode}; kill-switch: ${s.killSwitch}; автоподключение: ${s.autoConnect}`,
+    "Серверов в подписке: " + (snap.servers || []).length,
+    "Выгружено: " + new Date().toISOString(),
+    "",
+  ];
+  const text = head.concat(entries.map((e) => new Date(e.t).toISOString() + "  " + e.m)).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  a.download = "vpn-terminal-log-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".txt";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
 function render(s, force) {
   snap = s;
+  renderServers(s);
+  renderSite();
   renderState(s.state);
   renderTraffic(s.traffic, s.speed);
   renderSettings(s.settings, force);
@@ -120,8 +234,10 @@ const gctx = gcv.getContext("2d");
 
 function drawGraph(hist) {
   const W = gcv.clientWidth, H = gcv.clientHeight, N = 60;
+  const cs = getComputedStyle(document.body);
+  const g = cs.getPropertyValue("--g").trim(), rgb = cs.getPropertyValue("--rgb").trim();
   gctx.clearRect(0, 0, W, H);
-  gctx.strokeStyle = "rgba(0,255,102,.08)"; gctx.lineWidth = 1;
+  gctx.strokeStyle = `rgba(${rgb},.1)`; gctx.lineWidth = 1;
   gctx.beginPath();
   for (let i = 1; i < 4; i++) { const y = Math.round((H * i) / 4) + 0.5; gctx.moveTo(0, y); gctx.lineTo(W, y); }
   gctx.stroke();
@@ -137,7 +253,7 @@ function drawGraph(hist) {
       gctx.save();
       gctx.lineTo(x(hist.length - 1), H); gctx.lineTo(x(0), H); gctx.closePath();
       const gr = gctx.createLinearGradient(0, 0, 0, H);
-      gr.addColorStop(0, fill); gr.addColorStop(1, "rgba(0,255,102,0)");
+      gr.addColorStop(0, fill); gr.addColorStop(1, `rgba(${rgb},0)`);
       gctx.fillStyle = gr; gctx.fill();
       gctx.restore();
       gctx.beginPath();
@@ -145,10 +261,10 @@ function drawGraph(hist) {
     }
     gctx.strokeStyle = stroke; gctx.lineWidth = 1.6; gctx.lineJoin = "round"; gctx.stroke();
   };
-  line(0, "#00ff66", "rgba(0,255,102,.28)");
+  line(0, g, `rgba(${rgb},.28)`);
   line(1, "rgba(46,230,255,.85)");
   const lx = x(hist.length - 1), ly = y(hist[hist.length - 1][0]);
-  gctx.fillStyle = "#00ff66"; gctx.beginPath(); gctx.arc(lx - 1, ly, 2.5, 0, 6.29); gctx.fill();
+  gctx.fillStyle = g; gctx.beginPath(); gctx.arc(lx - 1, ly, 2.5, 0, 6.29); gctx.fill();
 }
 
 let ip = "", ipLoaded = false;
@@ -223,7 +339,7 @@ async function speedTest() {
   try {
     btn.textContent = "Пинг…"; show();
     const times = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
       const ms = await timed(() => fetch("https://speed.cloudflare.com/__down?bytes=0", { cache: "no-store" }).then((r) => r.arrayBuffer()));
       if (i > 0) times.push(ms);
     }
@@ -231,23 +347,34 @@ async function speedTest() {
     out.ping = Math.round(times[Math.floor(times.length / 2)]) + " мс"; show();
 
     btn.textContent = "Загрузка…";
+    const DOWN_MS = 12000, WARM_MS = 2000;
     const t0 = performance.now();
-    let got = 0;
-    const r = await fetch("https://speed.cloudflare.com/__down?bytes=40000000", { cache: "no-store" });
+    let got = 0, warmAt = 0, warmGot = 0;
+    const r = await fetch("https://speed.cloudflare.com/__down?bytes=400000000", { cache: "no-store" });
     const reader = r.body.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       got += value.length;
-      const sec = (performance.now() - t0) / 1000;
-      if (sec > 0.3) { out.down = ((got * 8) / 1e6 / sec).toFixed(1); show(); }
-      if (sec > 8) { reader.cancel(); break; }
+      const el = performance.now() - t0;
+      if (!warmAt && el >= WARM_MS) { warmAt = el; warmGot = got; }
+      if (warmAt && el - warmAt > 500) { out.down = (((got - warmGot) * 8) / 1e6 / ((el - warmAt) / 1000)).toFixed(1); show(); }
+      if (el > DOWN_MS) { reader.cancel(); break; }
     }
+    if (!warmAt) out.down = ((got * 8) / 1e6 / ((performance.now() - t0) / 1000)).toFixed(1);
+    show();
 
     btn.textContent = "Отдача…";
-    const body = new Uint8Array(8 * 1024 * 1024);
-    const ms = await timed(() => fetch("https://speed.cloudflare.com/__up", { method: "POST", body, cache: "no-store" }));
-    out.up = ((body.length * 8) / 1e6 / (ms / 1000)).toFixed(1); show();
+    const UP_MS = 8000;
+    const chunk = new Uint8Array(4 * 1024 * 1024);
+    const u0 = performance.now();
+    let sent = 0;
+    while (performance.now() - u0 < UP_MS) {
+      await fetch("https://speed.cloudflare.com/__up", { method: "POST", body: chunk, cache: "no-store" });
+      sent += chunk.length;
+      out.up = ((sent * 8) / 1e6 / ((performance.now() - u0) / 1000)).toFixed(1);
+      show();
+    }
   } catch (e) {
     const d = document.createElement("div");
     d.className = "card err";
@@ -264,12 +391,14 @@ chrome.runtime.onMessage.addListener((m) => {
   if (m.type === "state" && snap) { snap.state = m.state; renderState(m.state); }
 });
 
-send({ type: "getState" }).then((s) => {
+send({ type: "getState" }).then(async (s) => {
   render(s, true);
+  await loadTab();
   setInterval(async () => {
     if (document.hidden) return;
     const r = await send({ type: "getState" });
-    snap.traffic = r.traffic; snap.speed = r.speed;
+    snap.traffic = r.traffic; snap.speed = r.speed; snap.servers = r.servers;
+    renderServers(snap);
     renderTraffic(r.traffic, r.speed);
     renderMeta();
   }, 500);

@@ -124,7 +124,7 @@ body.error .status { font-size: 12px; letter-spacing: 0; line-height: 1.4; }
 .seg button.active { opacity: 1; color: #021; text-shadow: none; }
 .seg.s2 .seg-ink { transform: translateX(100%); }
 
-.panel, .card, .group, .tile, nav, .seg {
+.panel, .card, .group, nav, .seg {
   position: relative;
   background: var(--glass);
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); backdrop-filter: var(--lens);
@@ -133,10 +133,6 @@ body.error .status { font-size: 12px; letter-spacing: 0; line-height: 1.4; }
 }
 .panel, .group { border-radius: 18px; }
 .card { border-radius: 14px; }
-.tile { display: flex; align-items: center; gap: 12px; padding: 9px 13px; border-radius: 16px; }
-label.sw.tile.auto { margin: 0 0 10px; }
-.tile span b { display: block; font-weight: normal; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; }
-.tile span small { display: block; margin-top: 2px; font-size: 10px; letter-spacing: .3px; opacity: .6; }
 .panel.speed { padding: 11px 14px 6px; }
 .speed-row { display: flex; }
 .speed-row > div { flex: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
@@ -209,16 +205,11 @@ label.sw input:focus-visible + i { box-shadow: 0 0 0 3px rgba(0,255,102,.25); }
 
 .meta.warn { color: var(--y); opacity: 1; }
 
-.panel::before, .card::before, .group::before, .tile::before, nav::before, .seg::before {
+.panel::before, .card::before, .group::before, nav::before, .seg::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.3px; pointer-events: none;
   background: linear-gradient(135deg, rgba(200,255,220,.95) 0%, rgba(0,255,102,.10) 32%, rgba(0,255,102,.04) 62%, rgba(120,255,180,.65) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 
-.panel::after, .group::after {
-  content: ''; position: absolute; left: 6%; top: 0; width: 55%; height: 22%; pointer-events: none; border-radius: 0 0 60% 60% / 0 0 100% 100%;
-  background: linear-gradient(180deg, rgba(170,255,205,.13), rgba(170,255,205,0));
-}
-
-.panel, .card, .group, .tile, nav, .seg { text-shadow: 0 1px 3px rgba(0,0,0,.6), 0 0 6px rgba(0,255,102,.25); }
+.panel, .card, .group, nav, .seg { text-shadow: 0 1px 3px rgba(0,0,0,.6), 0 0 6px rgba(0,255,102,.25); }

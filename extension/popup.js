@@ -105,8 +105,9 @@ function renderTraffic(t, sp) {
   $("down").textContent = fmtBytes(t.downTotal);
   $("up").textContent = fmtBytes(t.upTotal);
   $("sess").textContent = fmtBytes(t.downSess + t.upSess);
-  const [d, du] = fmtRate(sp ? sp.down : 0);
-  const [u, uu] = fmtRate(sp ? sp.up : 0);
+  const cur = speedTesting && live ? live : sp;
+  const [d, du] = fmtRate(cur ? cur.down : 0);
+  const [u, uu] = fmtRate(cur ? cur.up : 0);
   $("spdDown").textContent = d; $("spdDownU").textContent = du;
   $("spdUp").textContent = u; $("spdUpU").textContent = uu;
   drawGraph(sp ? sp.hist : []);
@@ -433,16 +434,92 @@ chrome.storage.local.get("hostUpdate").then(({ hostUpdate }) => showHostUpdate(h
 $("resetTraffic").addEventListener("click", async () => render(await send({ type: "resetTraffic" })));
 
 let speedTesting = false;
+let live = null;
 function speedLabel(status) {
   return "Замерить скорость " + (status === "on" ? "(через VPN)" : "(без VPN)");
 }
 
 async function timed(fn) { const t = performance.now(); await fn(); return performance.now() - t; }
 
+const SPEED_HOST = "https://speed.cloudflare.com";
+
+function meter(onLive, key) {
+  let bytes = 0, lastB = 0, lastT = performance.now(), warmAt = 0, warmB = 0;
+  const t0 = performance.now();
+  const tick = setInterval(() => {
+    const now = performance.now();
+    live = { ...(live || { down: 0, up: 0 }), [key]: ((bytes - lastB) * 1000) / (now - lastT) };
+    lastB = bytes; lastT = now;
+    if (!warmAt && now - t0 >= 1500) { warmAt = now; warmB = bytes; }
+    onLive(warmAt && now - warmAt > 600 ? (((bytes - warmB) * 8) / 1e6) / ((now - warmAt) / 1000) : null);
+    renderTraffic(snap.traffic, snap.speed);
+  }, 250);
+  return {
+    add(n) { bytes += n; },
+    done() {
+      clearInterval(tick);
+      const now = performance.now();
+      live = { ...(live || { down: 0, up: 0 }), [key]: 0 };
+      if (warmAt && now - warmAt > 600) return (((bytes - warmB) * 8) / 1e6) / ((now - warmAt) / 1000);
+      return bytes ? ((bytes * 8) / 1e6) / ((now - t0) / 1000) : 0;
+    },
+  };
+}
+
+async function measureDown(ms, onLive) {
+  const m = meter(onLive, "down");
+  const end = performance.now() + ms;
+  let failure = null;
+  const worker = async () => {
+    while (performance.now() < end && !failure) {
+      const r = await fetch(`${SPEED_HOST}/__down?bytes=25000000&r=${Math.random()}`, { cache: "no-store" });
+      if (!r.ok) { failure = new Error("HTTP " + r.status); return; }
+      const rd = r.body.getReader();
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        m.add(value.length);
+        if (performance.now() >= end) { rd.cancel(); return; }
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()].map((p) => p.catch((e) => { failure = failure || e; })));
+  const v = m.done();
+  if (failure && !v) throw failure;
+  return v;
+}
+
+function postChunk(body, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    let last = 0;
+    x.open("POST", `${SPEED_HOST}/__up`);
+    x.upload.onprogress = (e) => { onProgress(e.loaded - last); last = e.loaded; };
+    x.onload = () => { onProgress(body.length - last); resolve(); };
+    x.onerror = () => reject(new Error("сеть недоступна"));
+    x.send(body);
+  });
+}
+
+async function measureUp(ms, onLive) {
+  const m = meter(onLive, "up");
+  const end = performance.now() + ms;
+  const chunk = new Uint8Array(2 * 1024 * 1024);
+  let failure = null;
+  const worker = async () => {
+    while (performance.now() < end && !failure) await postChunk(chunk, (n) => m.add(n));
+  };
+  await Promise.all([worker(), worker(), worker()].map((p) => p.catch((e) => { failure = failure || e; })));
+  const v = m.done();
+  if (failure && !v) throw failure;
+  return v;
+}
+
 async function speedTest() {
   const btn = $("speedBtn"), res = $("speedRes");
   btn.disabled = true;
   speedTesting = true;
+  live = { down: 0, up: 0 };
   const out = { ping: "—", down: "—", up: "—" };
   const show = () => {
     res.replaceChildren(...[["ПИНГ", out.ping], ["↓ МБИТ/С", out.down], ["↑ МБИТ/С", out.up]].map(([k, v]) => {
@@ -454,45 +531,22 @@ async function speedTest() {
       return d;
     }));
   };
+  const fmt = (v) => (v >= 100 ? v.toFixed(0) : v.toFixed(1));
   try {
     btn.textContent = "Пинг…"; show();
     const times = [];
     for (let i = 0; i < 10; i++) {
-      const ms = await timed(() => fetch("https://speed.cloudflare.com/__down?bytes=0", { cache: "no-store" }).then((r) => r.arrayBuffer()));
+      const ms = await timed(() => fetch(`${SPEED_HOST}/__down?bytes=0&r=${Math.random()}`, { cache: "no-store" }).then((r) => r.arrayBuffer()));
       if (i > 0) times.push(ms);
     }
     times.sort((a, b) => a - b);
     out.ping = Math.round(times[Math.floor(times.length / 2)]) + " мс"; show();
 
     btn.textContent = "Загрузка…";
-    const DOWN_MS = 12000, WARM_MS = 2000;
-    const t0 = performance.now();
-    let got = 0, warmAt = 0, warmGot = 0;
-    const r = await fetch("https://speed.cloudflare.com/__down?bytes=400000000", { cache: "no-store" });
-    const reader = r.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      got += value.length;
-      const el = performance.now() - t0;
-      if (!warmAt && el >= WARM_MS) { warmAt = el; warmGot = got; }
-      if (warmAt && el - warmAt > 500) { out.down = (((got - warmGot) * 8) / 1e6 / ((el - warmAt) / 1000)).toFixed(1); show(); }
-      if (el > DOWN_MS) { reader.cancel(); break; }
-    }
-    if (!warmAt) out.down = ((got * 8) / 1e6 / ((performance.now() - t0) / 1000)).toFixed(1);
-    show();
+    out.down = fmt(await measureDown(10000, (v) => { if (v) { out.down = fmt(v); show(); } })); show();
 
     btn.textContent = "Отдача…";
-    const UP_MS = 8000;
-    const chunk = new Uint8Array(4 * 1024 * 1024);
-    const u0 = performance.now();
-    let sent = 0;
-    while (performance.now() - u0 < UP_MS) {
-      await fetch("https://speed.cloudflare.com/__up", { method: "POST", body: chunk, cache: "no-store" });
-      sent += chunk.length;
-      out.up = ((sent * 8) / 1e6 / ((performance.now() - u0) / 1000)).toFixed(1);
-      show();
-    }
+    out.up = fmt(await measureUp(8000, (v) => { if (v) { out.up = fmt(v); show(); } })); show();
   } catch (e) {
     const d = document.createElement("div");
     d.className = "card err";
@@ -501,6 +555,7 @@ async function speedTest() {
   }
   btn.disabled = false;
   speedTesting = false;
+  live = null;
   btn.textContent = speedLabel(snap.state.status);
 }
 $("speedBtn").addEventListener("click", speedTest);

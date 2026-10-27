@@ -10,14 +10,16 @@
     error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },
   };
   const LAYERS = [
+    { n: 6, r0: 8, r1: 18, scale: 2, speed: 0.7, alpha: 0.9, bright: 0.8, mouse: 0.6, land: true },
     { n: 9, r0: 6, r1: 13, scale: 4, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0 },
-    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 1, mouse: 1, land: true },
-    { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1.15, mouse: 1.6 },
+    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 0.9, mouse: 1 },
+    { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1, mouse: 1.6 },
   ];
+
 
   const WORLD_VIEW = { z: 0.12, lon: 10, lat: 18 };
   const ZOOM_TO = 0.82;
-  const LAND_K = 3;
+  const LAND_K = 2.6;
   let mapPath = null;
   let target = null;
   const view = { ...WORLD_VIEW };
@@ -194,6 +196,7 @@
     const n = blobs.length;
     const land = L.land;
     if (land) updateLand(L);
+    const base = layers[0];
     for (let j = 0; j < fh; j++) {
       const py = j * sc;
       for (let i = 0; i < fw; i++) {
@@ -229,7 +232,12 @@
         data[o] = Math.min(255, cr * m + spec * 210 + 18);
         data[o + 1] = Math.min(255, cg * m + spec * 255 + 24);
         data[o + 2] = Math.min(255, cb * m + spec * 215 + 18);
-        data[o + 3] = 255 * edge * cfg.alpha * Math.min(1, 0.26 + 0.22 * core + rim * 0.5 + spec * 0.4);
+        let a = 255 * edge * cfg.alpha * Math.min(1, 0.26 + 0.22 * core + rim * 0.5 + spec * 0.4);
+        if (!land && base.land) {
+          const bi = Math.min(base.fh - 1, Math.floor((j * sc) / base.cfg.scale)) * base.fw + Math.min(base.fw - 1, Math.floor((i * sc) / base.cfg.scale));
+          a *= 1 - 0.9 * Math.min(1, base.land[bi] * 1.4);
+        }
+        data[o + 3] = a;
       }
     }
     L.sctx.putImageData(img, 0, 0);
@@ -269,6 +277,7 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     renderLayer(layers[0]);
+    renderLayer(layers[1]);
 
     for (const p of dust) {
       const s = p.s * (1 + Math.sin(clock * 1.2 + p.ph) * 0.12) * 2;
@@ -277,8 +286,8 @@
     }
     ctx.globalAlpha = 1;
 
-    renderLayer(layers[1]);
     renderLayer(layers[2]);
+    renderLayer(layers[3]);
     drawPin(r, g, b);
 
     const glow = ctx.createLinearGradient(0, H * 0.6, 0, H);

@@ -10,9 +10,9 @@
     error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },
   };
   const LAYERS = [
-    { n: 9, r0: 6, r1: 13, scale: 3, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0, wobble: 1.6, bubbles: 0 },
-    { n: 12, r0: 8, r1: 22, scale: 1.5, speed: 1, alpha: 1, bright: 0.95, mouse: 1, wobble: 2.4, bubbles: 2 },
-    { n: 5, r0: 20, r1: 32, scale: 2, speed: 1.3, alpha: 0.85, bright: 1.05, mouse: 1.6, wobble: 3, bubbles: 3 },
+    { n: 9, r0: 6, r1: 13, scale: 3, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0, wobble: 1.6 },
+    { n: 12, r0: 8, r1: 22, scale: 1.5, speed: 1, alpha: 1, bright: 0.95, mouse: 1, wobble: 2.4 },
+    { n: 5, r0: 20, r1: 32, scale: 2, speed: 1.3, alpha: 0.85, bright: 1.05, mouse: 1.6, wobble: 3 },
   ];
 
   let W = 0, H = 0;
@@ -55,8 +55,9 @@
         px: Math.random() * 6.28,
         py: Math.random() * 6.28,
         r: cfg.r0 + Math.random() * (cfg.r1 - cfg.r0),
-        spin: (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.3),
-        x: 0, y: 0, ox: 0, oy: 0,
+        wob: 0.5 + Math.random() * 0.7,
+        ph: Math.random() * 6.28,
+        x: 0, y: 0, ox: 0, oy: 0, vx: 0, vy: 0, c: 1, s: 0, el: 1, rr: 1,
       });
     }
     return {
@@ -103,8 +104,18 @@
         }
         b.ox *= 0.9;
         b.oy *= 0.9;
-        b.x = tx + b.ox;
-        b.y = ty + b.oy;
+        const nx = tx + b.ox, ny = ty + b.oy;
+        if (dt > 0) {
+          b.vx += ((nx - b.x) / dt - b.vx) * 0.12;
+          b.vy += ((ny - b.y) / dt - b.vy) * 0.12;
+        }
+        b.x = nx;
+        b.y = ny;
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > 1) { b.c += (b.vx / sp - b.c) * 0.2; b.s += (b.vy / sp - b.s) * 0.2; }
+        b.el = 1 + Math.min(0.22, sp / 260) + 0.05 * Math.sin(clock * b.wob + b.ph);
+        const pulse = 1 + 0.06 * Math.sin(clock * b.wob * 1.7 + b.ph * 2);
+        b.rr = b.r * b.r * pulse * pulse;
       }
     }
     for (const p of dust) {
@@ -128,7 +139,8 @@
         for (let k = 0; k < n; k++) {
           const b = blobs[k];
           const dx = px - b.x, dy = py - b.y;
-          f += (b.r * b.r) / (dx * dx + dy * dy + 40);
+          const al = (dx * b.c + dy * b.s) / b.el, pp = (dy * b.c - dx * b.s) * Math.sqrt(b.el);
+          f += b.rr / (al * al + pp * pp + 40);
         }
         field[j * fw + i] = f;
       }
@@ -166,33 +178,6 @@
     }
     L.sctx.putImageData(img, 0, 0);
     ctx.drawImage(L.canvas, 0, 0, fw * sc, fh * sc);
-    if (cfg.bubbles) drawBubbles(L);
-  }
-
-  function drawBubbles(L) {
-    const { blobs, cfg, field, fw, fh } = L;
-    const sc = cfg.scale;
-    for (const b of blobs) {
-      if (b.r < 11) continue;
-      for (let k = 0; k < cfg.bubbles; k++) {
-        const ang = clock * 0.35 * b.spin + k * 2.4 + b.px;
-        const off = b.r * (0.22 + 0.16 * k);
-        const x = b.x + Math.cos(ang) * off, y = b.y + Math.sin(ang * 1.3) * off * 0.8;
-        const fi = Math.min(fw - 1, Math.max(0, Math.round(x / sc))), fj = Math.min(fh - 1, Math.max(0, Math.round(y / sc)));
-        const inside = smooth(1.6, 2.6, field[fj * fw + fi]);
-        if (inside <= 0) continue;
-        const br = b.r * (0.13 + 0.05 * k);
-        const gr = ctx.createRadialGradient(x - br * 0.3, y - br * 0.35, br * 0.05, x, y, br);
-        gr.addColorStop(0, `rgba(255,255,255,${0.34 * inside})`);
-        gr.addColorStop(0.3, `rgba(255,255,255,${0.05 * inside})`);
-        gr.addColorStop(0.8, `rgba(255,255,255,0)`);
-        gr.addColorStop(1, `rgba(255,255,255,${0.3 * inside})`);
-        ctx.fillStyle = gr;
-        ctx.beginPath();
-        ctx.arc(x, y, br, 0, 6.2832);
-        ctx.fill();
-      }
-    }
   }
 
   function lerpTo(cur3, tgt3, k) {

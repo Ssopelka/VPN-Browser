@@ -18,7 +18,7 @@ body {
   --bg0: #0f1f17; --bg1: #050806; --gray: 0.45; --hue: 0deg;
   transition: --g .9s ease, --rgb .9s ease, --hi .9s ease, --dk .9s ease, --soft .9s ease, --mute .9s ease, --bg0 .9s ease, --bg1 .9s ease, --gray .9s ease, --hue .9s ease;
   --g3: rgba(var(--rgb), .2);
-  --glass: linear-gradient(150deg, rgba(var(--hi), .09) 0%, rgba(var(--hi), .025) 26%, rgba(var(--hi), 0) 50%),
+  --glass: linear-gradient(rgba(0,0,0,.26), rgba(0,0,0,.26)), linear-gradient(150deg, rgba(var(--hi), .09) 0%, rgba(var(--hi), .025) 26%, rgba(var(--hi), 0) 50%),
            radial-gradient(130% 90% at 100% 100%, rgba(var(--rgb), .07), rgba(var(--rgb), 0) 58%),
            linear-gradient(180deg, rgba(var(--rgb), .015), rgba(var(--dk), .05));
   --blur: blur(6px) saturate(150%) brightness(1) contrast(1.04);
@@ -48,12 +48,12 @@ body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-i
 
 main { position: relative; z-index: 2; height: 100%; padding: 14px 16px 12px; display: flex; flex-direction: column; }
 
-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+header { position: relative; z-index: 8; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand img { filter: grayscale(var(--gray)) hue-rotate(var(--hue)) brightness(1) drop-shadow(0 0 4px rgba(var(--rgb),.45)); }
 h1 { font-size: 16px; font-weight: normal; letter-spacing: 3px; text-shadow: 0 0 8px rgba(var(--rgb),.5); }
 
-nav { position: relative; display: flex; flex: none; border-radius: 15px; padding: 3px; margin: 2px 2px 8px; }
+nav { position: relative; z-index: 8; display: flex; flex: none; border-radius: 15px; padding: 3px; margin: 2px 2px 8px; }
 .tab {
   position: relative; z-index: 1; flex: 1; padding: 7px; font: inherit; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
   background: none; color: var(--g); border: 0; cursor: pointer; opacity: .55; transition: opacity .2s, color .2s;
@@ -67,11 +67,12 @@ nav { position: relative; display: flex; flex: none; border-radius: 15px; paddin
 }
 nav.s2 .tab-ink { transform: translateX(100%); }
 
-.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin: 0 -12px 0 -4px; padding: 4px 6px 10px 4px; overscroll-behavior: contain; }
+.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin: -12px -16px -12px -16px; padding: 18px 10px 22px 16px; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); mask-image: linear-gradient(transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); }
 .page.active { display: block; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
+::-webkit-scrollbar-track { background: transparent; margin: 10px 0 14px; }
 ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(var(--rgb),.55), rgba(var(--rgb),.25)); border-radius: 6px; border: 1px solid rgba(0,0,0,.6); }
 ::-webkit-scrollbar-thumb:hover { background: var(--g); box-shadow: 0 0 8px var(--g); }
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
@@ -275,7 +276,3 @@ select option { background: #04120a; color: var(--soft); }
 #serverList em { flex: none; font-style: normal; font-size: 10px; opacity: .55; }
 
 .tab:focus, .tab:focus-visible, .seg button:focus, .seg button:focus-visible, .seg3 button:focus, .seg3 button:focus-visible, #power:focus-visible { outline: none; }
-
-.page::before, .page::after { content: ''; display: block; position: sticky; z-index: 6; height: 14px; pointer-events: none; }
-.page::before { top: -4px; margin: -4px 0 -10px; background: linear-gradient(color-mix(in srgb, var(--bg0) 65%, transparent), transparent); }
-.page::after { bottom: -10px; margin: -4px 0 -10px; background: linear-gradient(transparent, color-mix(in srgb, var(--bg1) 70%, transparent)); }

@@ -6,6 +6,13 @@
 <link rel="stylesheet" href="popup.css">
 </head>
 <body class="off">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="lens" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.011 0.016" numOctaves="2" seed="7" result="n"/>
+      <feGaussianBlur in="n" stdDeviation="2" result="nb"/>
+      <feDisplacementMap in="SourceGraphic" in2="nb" scale="26" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
   <canvas id="bg" aria-hidden="true"></canvas>
 
   <main>
@@ -14,7 +21,6 @@
         <img src="icons/icon48.png" alt="" width="26" height="26">
         <h1>VPN TERMINAL</h1>
       </div>
-      <div id="pill" class="pill" role="status" aria-live="polite"><i class="dot"></i><span>ОФФЛАЙН</span></div>
     </header>
 
     <nav>
@@ -78,14 +84,14 @@
         <h3>Подключение</h3>
         <label for="source">Источник</label>
         <input id="source" spellcheck="false" autocomplete="off" placeholder="https://… / vless://… / hysteria2://…">
-        <div class="hint">ссылка-подписка · vless · vmess · trojan · ss · hysteria2 · hysteria · tuic · anytls · socks5://host:port · http(s)://host:port</div>
-        <label class="sw"><input type="checkbox" id="killSwitch"><i></i><span>Kill-switch: не открывать сайты напрямую, если VPN упал</span></label>
+        <div class="hint">Подписка или ссылка: vless, vmess, trojan, ss, hysteria, hysteria2, tuic, anytls, socks5, http(s)</div>
+        <label class="sw"><input type="checkbox" id="killSwitch"><i></i><span>Блокировать трафик, если VPN отключился</span></label>
       </div>
 
       <div class="group">
         <h3>Защита</h3>
-        <label class="sw"><input type="checkbox" id="webrtc"><i></i><span>Блокировать утечку IP через WebRTC</span></label>
-        <label class="sw"><input type="checkbox" id="bypassLan"><i></i><span>Локальная сеть (192.168.*, 10.*) напрямую</span></label>
+        <label class="sw"><input type="checkbox" id="webrtc"><i></i><span>Защита от утечки IP через WebRTC</span></label>
+        <label class="sw"><input type="checkbox" id="bypassLan"><i></i><span>Локальная сеть без VPN</span></label>
       </div>
 
       <div class="group">
@@ -97,8 +103,8 @@
       </div>
 
       <div class="group">
-        <h3>Список блокировок РФ</h3>
-        <label for="listUrls">Источники (по одному в строке)</label>
+        <h3>Списки блокировок</h3>
+        <label for="listUrls">Источники списков, по одному в строке</label>
         <textarea id="listUrls" rows="3" spellcheck="false"></textarea>
         <label class="sw"><input type="checkbox" id="autoUpdate"><i></i><span>Обновлять раз в сутки</span></label>
         <div class="row">

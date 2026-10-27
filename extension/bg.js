@@ -104,15 +104,21 @@
         }
         b.ox *= 0.9;
         b.oy *= 0.9;
-        const nx = tx + b.ox, ny = ty + b.oy;
-        if (dt > 0) {
-          b.vx += ((nx - b.x) / dt - b.vx) * 0.12;
-          b.vy += ((ny - b.y) / dt - b.vy) * 0.12;
+        if (dt > 0 && b.tx !== undefined) {
+          b.vx += ((tx - b.tx) / dt - b.vx) * 0.12;
+          b.vy += ((ty - b.ty) / dt - b.vy) * 0.12;
         }
-        b.x = nx;
-        b.y = ny;
+        b.tx = tx;
+        b.ty = ty;
+        b.x = tx + b.ox;
+        b.y = ty + b.oy;
         const sp = Math.hypot(b.vx, b.vy);
-        if (sp > 1) { b.c += (b.vx / sp - b.c) * 0.2; b.s += (b.vy / sp - b.s) * 0.2; }
+        if (sp > 1) {
+          const ca = b.c + (b.vx / sp - b.c) * 0.2, sa = b.s + (b.vy / sp - b.s) * 0.2;
+          const l = Math.hypot(ca, sa) || 1;
+          b.c = ca / l;
+          b.s = sa / l;
+        }
         b.el = 1 + Math.min(0.22, sp / 260) + 0.05 * Math.sin(clock * b.wob + b.ph);
         const pulse = 1 + 0.06 * Math.sin(clock * b.wob * 1.7 + b.ph * 2);
         b.rr = b.r * b.r * pulse * pulse;

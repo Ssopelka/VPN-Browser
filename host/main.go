@@ -3,20 +3,32 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
 var version = "dev"
 
-// ID расширения задаётся полем key в manifest.json.
+// extID задаётся полем key в manifest.json. storeID подставляется при сборке (-X main.storeID=...) для версии из Chrome Web Store.
 const extID = "aakkclmhpdfjajdbclhfaeodkbfpnakj"
+
+var storeID = ""
+
+func allowedOrigins() []string {
+	o := []string{"chrome-extension://" + extID + "/"}
+	if storeID != "" {
+		o = append(o, "chrome-extension://"+storeID+"/")
+	}
+	return o
+}
+
 const hostName = "net.stealthsurf.vpn_host"
 
 func main() {
 	args := os.Args[1:]
 	for _, a := range args {
 		if strings.HasPrefix(a, "chrome-extension://") {
-			if a != "chrome-extension://"+extID+"/" {
+			if !slices.Contains(allowedOrigins(), a) {
 				fmt.Fprintln(os.Stderr, "неизвестное расширение:", a)
 				os.Exit(2)
 			}

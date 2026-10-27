@@ -31,6 +31,7 @@ type core struct {
 	Pass     string
 	Server   string
 	Proto    string
+	Servers  []serverInfo
 }
 
 func randHex(n int) string {
@@ -100,24 +101,40 @@ func buildConfig(link string, port int, user, pass string) ([]byte, string, stri
 	return b, name, typ, err
 }
 
-func startCore(src string, wantPort int, progress func(string)) (*core, error) {
+func resolveServers(src string, progress func(string)) ([]serverInfo, error) {
 	src = strings.TrimSpace(src)
-	link := src
-	if strings.HasPrefix(strings.ToLower(src), "http://") || strings.HasPrefix(strings.ToLower(src), "https://") {
+	body := src
+	if l := strings.ToLower(src); strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://") {
 		progress("Загружаю конфиг…")
-		body, err := fetchText(src)
-		if err != nil {
-			return nil, err
-		}
-		if link, err = selectLink(body); err != nil {
+		var err error
+		if body, err = fetchText(src); err != nil {
 			return nil, err
 		}
 	}
+	links, err := selectLinks(body)
+	if err != nil {
+		return nil, err
+	}
+	servers := parseServers(links)
+	if len(servers) == 0 {
+		_, _, err := parseLink(links[0])
+		return nil, err
+	}
+	return servers, nil
+}
+
+func startCore(src string, wantPort int, want string, progress func(string)) (*core, error) {
+	servers, err := resolveServers(src, progress)
+	if err != nil {
+		return nil, err
+	}
+	pick, _ := chooseServer(servers, want)
+	link := pick.link
 	port, err := freePort(wantPort)
 	if err != nil {
 		return nil, err
 	}
-	c := &core{Port: port, User: randHex(8), Pass: randHex(16)}
+	c := &core{Port: port, User: randHex(8), Pass: randHex(16), Servers: servers}
 	cfg, name, typ, err := buildConfig(link, port, c.User, c.Pass)
 	if err != nil {
 		return nil, err

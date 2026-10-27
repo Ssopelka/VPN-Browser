@@ -276,3 +276,21 @@ select option { background: #04120a; color: var(--soft); }
 #serverList em { flex: none; font-style: normal; font-size: 10px; opacity: .55; }
 
 .tab:focus, .tab:focus-visible, .seg button:focus, .seg button:focus-visible, .seg3 button:focus, .seg3 button:focus-visible, #power:focus-visible { outline: none; }
+
+body.simple { text-shadow: none; --blur: none; --lens: none; background: var(--bg1); }
+body.simple::before { display: none; }
+body.simple #bg { display: none; }
+body.simple .panel, body.simple .card, body.simple .group, body.simple nav, body.simple .seg {
+  background: rgba(var(--rgb), .08); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; text-shadow: none;
+  border: 1px solid rgba(var(--rgb), .28);
+}
+body.simple .panel::before, body.simple .card::before, body.simple .group::before, body.simple nav::before, body.simple .seg::before { display: none; }
+body.simple .tab-ink, body.simple .seg-ink, body.simple .seg3-ink { background: rgba(var(--rgb), .85); box-shadow: none; }
+body.simple .ghost { background: rgba(var(--rgb), .1); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 1px solid rgba(var(--rgb), .3); }
+body.simple .ghost:hover:not(:disabled) { background: rgba(var(--rgb), .85); box-shadow: none; }
+body.simple .ghost.danger { background: rgba(255,59,78,.12); box-shadow: none; }
+body.simple .core, body.simple.on .core { background: rgba(var(--rgb), .12); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border: 1px solid rgba(var(--rgb), .5); }
+body.simple .core svg, body.simple .arc, body.simple .brand img { filter: none; }
+body.simple .pulse { display: none; }
+body.simple h1, body.simple .status, body.simple .speed-row strong, body.simple .speed-row > div + div strong { text-shadow: none; }
+body.simple #serverList { -webkit-backdrop-filter: none; backdrop-filter: none; background: #06130c; }

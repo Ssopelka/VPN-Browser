@@ -2,6 +2,16 @@ const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
 let snap = null;
+let simpleOn = false;
+try { simpleOn = localStorage.getItem("simple") === "1"; } catch {}
+document.body.classList.toggle("simple", simpleOn);
+
+function applySimple(on) {
+  simpleOn = on;
+  try { localStorage.setItem("simple", on ? "1" : "0"); } catch {}
+  document.body.classList.toggle("simple", on);
+  window.setBgEnabled?.(!on);
+}
 
 function fmtBytes(n) {
   const u = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
@@ -53,7 +63,7 @@ function flagImg(cc) {
 }
 
 function renderState(s) {
-  document.body.className = s.status;
+  document.body.className = s.status + (simpleOn ? " simple" : "");
   window.setBgMode?.(s.status);
   $("power").setAttribute("aria-label", s.status === "on" ? "Отключить" : "Подключить");
   if (!speedTesting) $("speedBtn").textContent = speedLabel(s.status);
@@ -106,9 +116,10 @@ function setSeg(mode) {
 
 function renderSettings(s, force) {
   setSeg(s.mode);
+  if (s.simpleView !== simpleOn) applySimple(!!s.simpleView);
   if (!force) return;
   for (const k of ["source", "include", "exclude", "listUrls"]) $(k).value = s[k] || "";
-  for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost"]) $(k).checked = !!s[k];
+  for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost", "simpleView"]) $(k).checked = !!s[k];
 }
 
 function renderList(info, local) {
@@ -341,11 +352,12 @@ function saveForm() {
   saveTimer = setTimeout(async () => {
     const settings = {};
     for (const k of ["source", "include", "exclude", "listUrls"]) settings[k] = $(k).value.trim();
-    for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost"]) settings[k] = $(k).checked;
+    for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost", "simpleView"]) settings[k] = $(k).checked;
     snap = await send({ type: "saveSettings", settings });
   }, 400);
 }
 document.querySelectorAll("#settings input, #settings textarea, #autoConnect").forEach((el) => el.addEventListener("input", saveForm));
+$("simpleView").addEventListener("change", () => applySimple($("simpleView").checked));
 
 $("updList").addEventListener("click", async () => {
   const b = $("updList");
@@ -355,7 +367,7 @@ $("updList").addEventListener("click", async () => {
   if (r.ok) { snap.listInfo = r.listInfo; renderList(r.listInfo); } else $("listInfo").textContent = r.error;
 });
 
-const SETTING_KEYS = ["source", "mode", "include", "exclude", "listUrls", "autoUpdate", "killSwitch", "bypassLan", "webrtc", "autoConnect", "autoUpdateHost"];
+const SETTING_KEYS = ["source", "mode", "include", "exclude", "listUrls", "autoUpdate", "killSwitch", "bypassLan", "webrtc", "autoConnect", "autoUpdateHost", "simpleView"];
 
 $("cfgExport").addEventListener("click", () => {
   const settings = {};

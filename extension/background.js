@@ -23,6 +23,7 @@ const DEFAULTS = {
   webrtc: true,
   autoConnect: false,
   autoUpdateHost: true,
+  simpleView: false,
 };
 const ALWAYS_PROXY = ["speed.cloudflare.com", "api.ipify.org", "ipwho.is"];
 
@@ -54,7 +55,7 @@ function log(text) {
 
 const SCHEMA = {
   source: "string", server: "string", mode: ["all", "blocked"], include: "string", exclude: "string", listUrls: "string",
-  autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean", autoUpdateHost: "boolean",
+  autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean", autoUpdateHost: "boolean", simpleView: "boolean",
 };
 function sanitize(patch) {
   const out = {};

@@ -15,6 +15,8 @@
     { n: 5, r0: 20, r1: 32, scale: 2, speed: 1.3, alpha: 0.85, bright: 1.05, mouse: 1.6, wobble: 3 },
   ];
 
+  let enabled = true;
+  try { enabled = localStorage.getItem("simple") !== "1"; } catch {}
   let W = 0, H = 0;
   let layers = [], dust = [];
   let mode = "off";
@@ -236,17 +238,30 @@
     ctx.fillRect(0, H * 0.6, W, H * 0.4);
   }
 
-  function start() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
+  function start() { if (enabled && !raf) { last = 0; raf = requestAnimationFrame(frame); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; }
 
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   resize();
   paintSprite();
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { frame(1e9); stop(); }
+  if (!enabled) cv.style.display = "none";
+  else if (reduced) { frame(1e9); stop(); }
   else start();
 
   document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
   addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, { passive: true });
   addEventListener("mouseleave", () => { mouse.x = mouse.y = -999; });
 
+  window.setBgEnabled = (on) => {
+    enabled = on;
+    if (on) {
+      cv.style.display = "";
+      resize();
+      if (reduced) { frame(1e9); stop(); } else start();
+    } else {
+      stop();
+      cv.style.display = "none";
+    }
+  };
   window.setBgMode = (m) => { mode = THEMES[m] ? m : "off"; };
 })();

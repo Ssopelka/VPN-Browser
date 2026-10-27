@@ -3,15 +3,22 @@
   const ctx = cv.getContext("2d", { alpha: false });
   const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
   const FPS = 30;
-  const SCALE = 2;
-  const COLORS = { off: [0, 200, 90], on: [0, 255, 102], connecting: [255, 212, 0], error: [255, 59, 78] };
-  const SPEED = { off: 0.55, on: 0.85, connecting: 1.5, error: 0.45 };
+  const THEMES = {
+    off: { c: [158, 166, 178], bg0: [24, 27, 32], bg1: [7, 8, 10], speed: 0.5 },
+    connecting: { c: [255, 200, 0], bg0: [37, 29, 5], bg1: [9, 7, 0], speed: 1.4 },
+    on: { c: [0, 255, 102], bg0: [7, 40, 26], bg1: [2, 6, 4], speed: 0.8 },
+    error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },
+  };
+  const LAYERS = [
+    { n: 9, r0: 6, r1: 13, scale: 4, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0 },
+    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 1, mouse: 1 },
+    { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1.15, mouse: 1.6 },
+  ];
 
-  let W = 0, H = 0, fw = 0, fh = 0;
-  let field, img, small, sctx;
-  let blobs = [], dust = [];
+  let W = 0, H = 0;
+  let layers = [], dust = [];
   let mode = "off";
-  let col = [...COLORS.off];
+  const cur = { c: [...THEMES.off.c], bg0: [...THEMES.off.bg0], bg1: [...THEMES.off.bg1] };
   let last = 0, raf = 0, clock = 0;
   const mouse = { x: -999, y: -999 };
 
@@ -20,7 +27,7 @@
     const s = 48;
     sprite.width = sprite.height = s;
     const g = sprite.getContext("2d");
-    const [r, gg, b] = col.map(Math.round);
+    const [r, gg, b] = cur.c.map(Math.round);
     const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
     grd.addColorStop(0, `rgba(${r},${gg},${b},1)`);
     grd.addColorStop(0.25, `rgba(${r},${gg},${b},.45)`);
@@ -30,39 +37,37 @@
     g.fillRect(0, 0, s, s);
   }
 
+  function makeLayer(cfg) {
+    const fw = Math.ceil(W / cfg.scale), fh = Math.ceil(H / cfg.scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = fw;
+    canvas.height = fh;
+    const sctx = canvas.getContext("2d");
+    const blobs = [];
+    for (let i = 0; i < cfg.n; i++) {
+      blobs.push({
+        cx: W * (0.05 + 0.9 * Math.random()),
+        cy: H * (0.05 + 0.9 * Math.random()),
+        ax: 12 + Math.random() * 38,
+        ay: H * (0.15 + Math.random() * 0.3),
+        wx: 0.14 + Math.random() * 0.2,
+        wy: 0.08 + Math.random() * 0.14,
+        px: Math.random() * 6.28,
+        py: Math.random() * 6.28,
+        r: cfg.r0 + Math.random() * (cfg.r1 - cfg.r0),
+        x: 0, y: 0, ox: 0, oy: 0,
+      });
+    }
+    return { cfg, fw, fh, canvas, sctx, img: sctx.createImageData(fw, fh), field: new Float32Array(fw * fh), blobs };
+  }
+
   function resize() {
     W = cv.clientWidth;
     H = cv.clientHeight;
     cv.width = Math.round(W * DPR);
     cv.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    fw = Math.ceil(W / SCALE);
-    fh = Math.ceil(H / SCALE);
-    field = new Float32Array(fw * fh);
-    small = document.createElement("canvas");
-    small.width = fw;
-    small.height = fh;
-    sctx = small.getContext("2d");
-    img = sctx.createImageData(fw, fh);
-  }
-
-  function seed() {
-    blobs = [];
-    const n = 14;
-    for (let i = 0; i < n; i++) {
-      blobs.push({
-        cx: W * (0.1 + 0.8 * Math.random()),
-        cy: H * (0.1 + 0.8 * Math.random()),
-        ax: 14 + Math.random() * 36,
-        ay: H * (0.18 + Math.random() * 0.3),
-        wx: 0.14 + Math.random() * 0.2,
-        wy: 0.08 + Math.random() * 0.14,
-        px: Math.random() * 6.28,
-        py: Math.random() * 6.28,
-        r: 8 + Math.random() * 17,
-        x: 0, y: 0, ox: 0, oy: 0,
-      });
-    }
+    layers = LAYERS.map(makeLayer);
     dust = [];
     for (let i = 0; i < 16; i++) {
       dust.push({ x: Math.random() * W, y: Math.random() * H, v: 0.15 + Math.random() * 0.4, s: 6 + Math.random() * 14, ph: Math.random() * 6.28 });
@@ -75,36 +80,41 @@
   };
 
   function step(dt) {
-    clock += dt * SPEED[mode];
-    for (const b of blobs) {
-      const tx = b.cx + Math.sin(clock * b.wx + b.px) * b.ax;
-      const ty = b.cy + Math.sin(clock * b.wy + b.py) * b.ay;
-      let dx = tx - mouse.x, dy = ty - mouse.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < 130 * 130) {
-        const k = (1 - Math.sqrt(d2) / 130) * 38;
-        const d = Math.sqrt(d2) || 1;
-        b.ox += (dx / d) * k;
-        b.oy += (dy / d) * k;
+    clock += dt * THEMES[mode].speed;
+    for (const L of layers) {
+      const { speed, mouse: mk } = L.cfg;
+      for (const b of L.blobs) {
+        const tx = b.cx + Math.sin(clock * speed * b.wx + b.px) * b.ax;
+        const ty = b.cy + Math.sin(clock * speed * b.wy + b.py) * b.ay;
+        const dx = tx - mouse.x, dy = ty - mouse.y;
+        const d2 = dx * dx + dy * dy;
+        if (mk && d2 < 130 * 130) {
+          const d = Math.sqrt(d2) || 1;
+          const k = (1 - d / 130) * 38 * mk;
+          b.ox += (dx / d) * k;
+          b.oy += (dy / d) * k;
+        }
+        b.ox *= 0.9;
+        b.oy *= 0.9;
+        b.x = tx + b.ox;
+        b.y = ty + b.oy;
       }
-      b.ox *= 0.9;
-      b.oy *= 0.9;
-      b.x = tx + b.ox;
-      b.y = ty + b.oy;
     }
     for (const p of dust) {
-      p.y -= p.v * dt * 60 * SPEED[mode];
+      p.y -= p.v * dt * 60 * THEMES[mode].speed;
       p.x += Math.sin(clock * 0.6 + p.ph) * 0.25;
       if (p.y < -20) { p.y = H + 20; p.x = Math.random() * W; }
     }
   }
 
-  function renderSlime() {
+  function renderLayer(L) {
+    const { fw, fh, field, blobs, img, cfg } = L;
+    const sc = cfg.scale;
     const n = blobs.length;
     for (let j = 0; j < fh; j++) {
-      const py = j * SCALE;
+      const py = j * sc;
       for (let i = 0; i < fw; i++) {
-        const px = i * SCALE;
+        const px = i * sc;
         let f = 0;
         for (let k = 0; k < n; k++) {
           const b = blobs[k];
@@ -114,7 +124,7 @@
         field[j * fw + i] = f;
       }
     }
-    const [cr, cg, cb] = col;
+    const [cr, cg, cb] = cur.c;
     const data = img.data;
     const lx = -0.55, ly = -0.8;
     for (let j = 0; j < fh; j++) {
@@ -132,18 +142,24 @@
         const diff = Math.max(0, nx * lx + ny * ly);
         const spec = Math.pow(diff, 14) * rim;
         const core = Math.min(1, f / 3.2);
-        const depth = 0.16 + 0.42 * core;
-        const m = depth + rim * 0.55 + diff * 0.25 * rim;
+        const m = (0.16 + 0.42 * core + rim * 0.55 + diff * 0.25 * rim) * cfg.bright;
         data[o] = Math.min(255, cr * m + spec * 210 + 18);
         data[o + 1] = Math.min(255, cg * m + spec * 255 + 24);
         data[o + 2] = Math.min(255, cb * m + spec * 215 + 18);
-        data[o + 3] = 255 * edge * Math.min(1, 0.26 + 0.22 * core + rim * 0.5 + spec * 0.4);
+        data[o + 3] = 255 * edge * cfg.alpha * Math.min(1, 0.26 + 0.22 * core + rim * 0.5 + spec * 0.4);
       }
     }
-    sctx.putImageData(img, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(small, 0, 0, fw * SCALE, fh * SCALE);
+    L.sctx.putImageData(img, 0, 0);
+    ctx.drawImage(L.canvas, 0, 0, fw * sc, fh * sc);
+  }
+
+  function lerpTo(cur3, tgt3, k) {
+    let changed = false;
+    for (let i = 0; i < 3; i++) {
+      const d = tgt3[i] - cur3[i];
+      if (Math.abs(d) > 0.4) { cur3[i] += d * k; changed = true; }
+    }
+    return changed;
   }
 
   function frame(t) {
@@ -152,22 +168,23 @@
     const dt = Math.min(0.1, (t - last) / 1000);
     last = t;
 
-    const tgt = COLORS[mode] || COLORS.off;
-    let changed = false;
-    for (let i = 0; i < 3; i++) {
-      const d = tgt[i] - col[i];
-      if (Math.abs(d) > 0.5) { col[i] += d * 0.08; changed = true; }
-    }
-    if (changed) paintSprite();
-    const [r, g, b] = col.map(Math.round);
+    const th = THEMES[mode] || THEMES.off;
+    if (lerpTo(cur.c, th.c, 0.08)) paintSprite();
+    lerpTo(cur.bg0, th.bg0, 0.08);
+    lerpTo(cur.bg1, th.bg1, 0.08);
+    const [r, g, b] = cur.c.map(Math.round);
 
     step(dt);
 
     const bg = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, H * 0.9);
-    bg.addColorStop(0, "#07281a");
-    bg.addColorStop(1, "#020604");
+    bg.addColorStop(0, `rgb(${cur.bg0.map(Math.round)})`);
+    bg.addColorStop(1, `rgb(${cur.bg1.map(Math.round)})`);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    renderLayer(layers[0]);
 
     for (const p of dust) {
       const s = p.s * (1 + Math.sin(clock * 1.2 + p.ph) * 0.12) * 2;
@@ -176,7 +193,8 @@
     }
     ctx.globalAlpha = 1;
 
-    renderSlime();
+    renderLayer(layers[1]);
+    renderLayer(layers[2]);
 
     const glow = ctx.createLinearGradient(0, H * 0.6, 0, H);
     glow.addColorStop(0, `rgba(${r},${g},${b},0)`);
@@ -190,7 +208,6 @@
 
   resize();
   paintSprite();
-  seed();
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { frame(1e9); stop(); }
   else start();
 
@@ -198,5 +215,5 @@
   addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, { passive: true });
   addEventListener("mouseleave", () => { mouse.x = mouse.y = -999; });
 
-  window.setBgMode = (m) => { mode = m; };
+  window.setBgMode = (m) => { mode = THEMES[m] ? m : "off"; };
 })();

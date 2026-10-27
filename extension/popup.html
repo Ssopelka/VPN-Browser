@@ -56,6 +56,18 @@
         <span class="seg-ink"></span>
       </div>
 
+      <div class="panel mini" id="serverBox" hidden>
+        <span>Сервер</span>
+        <select id="serverSel" aria-label="Сервер"></select>
+      </div>
+
+      <div class="panel mini" id="siteBox" hidden>
+        <span id="siteName"></span>
+        <div class="seg3" id="siteSeg">
+          <button data-r="auto">Авто</button><button data-r="vpn">VPN</button><button data-r="direct">Напрямую</button><span class="seg3-ink"></span>
+        </div>
+      </div>
+
       <div class="panel speed">
         <div class="speed-row">
           <div><span class="lbl"><b class="dn">↓</b> ЗАГРУЗКА</span><strong id="spdDown">0</strong><em id="spdDownU">Кбит/с</em></div>
@@ -106,6 +118,16 @@
         <div class="row">
           <button id="updList" class="ghost sm">Обновить</button>
           <span id="listInfo" class="hint"></span>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Журнал</h3>
+        <textarea id="logView" rows="6" readonly spellcheck="false"></textarea>
+        <div class="row">
+          <button id="logRefresh" class="ghost sm">Обновить</button>
+          <button id="logExport" class="ghost sm">Экспорт</button>
+          <button id="logClear" class="ghost sm">Очистить</button>
         </div>
       </div>
 

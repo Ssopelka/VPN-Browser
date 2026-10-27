@@ -54,7 +54,7 @@ header { display: flex; align-items: center; justify-content: space-between; mar
 .brand img { filter: grayscale(var(--gray)) hue-rotate(var(--hue)) brightness(1.1) drop-shadow(0 0 6px rgba(var(--rgb),.6)); }
 h1 { font-size: 16px; font-weight: normal; letter-spacing: 3px; text-shadow: 0 0 10px var(--g), 0 0 22px rgba(var(--rgb),.45); }
 
-nav { position: relative; display: flex; border-radius: 15px; padding: 3px; margin-bottom: 8px; }
+nav { position: relative; display: flex; flex: none; border-radius: 15px; padding: 3px; margin: 2px 2px 8px; }
 .tab {
   position: relative; z-index: 1; flex: 1; padding: 7px; font: inherit; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
   background: none; color: var(--g); border: 0; cursor: pointer; opacity: .55; transition: opacity .2s, color .2s;
@@ -68,7 +68,7 @@ nav { position: relative; display: flex; border-radius: 15px; padding: 3px; marg
 }
 nav.s2 .tab-ink { transform: translateX(100%); }
 
-.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin-right: -12px; padding-right: 6px; overscroll-behavior: contain; }
+.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin: 0 -12px 0 -4px; padding: 4px 6px 10px 4px; overscroll-behavior: contain; }
 .page.active { display: block; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

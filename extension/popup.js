@@ -22,7 +22,6 @@ function fmtDuration(ms) {
   return (h ? h + ":" : "") + String(m).padStart(2, "0") + ":" + String(x).padStart(2, "0");
 }
 
-// "🇩🇪 Германия" -> { cc: "de", text: "Германия" }. Windows не рисует эмодзи-флаги, поэтому берём SVG.
 function splitFlag(name) {
   const m = String(name || "").match(/^\s*([\u{1F1E6}-\u{1F1FF}]{2})\s*(.*)$/u);
   if (!m) return { cc: null, text: name || "" };
@@ -30,7 +29,6 @@ function splitFlag(name) {
   return { cc, text: m[2] };
 }
 
-// ---------- вкладки ----------
 document.querySelectorAll(".tab").forEach((b, i) =>
   b.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
@@ -39,14 +37,11 @@ document.querySelectorAll(".tab").forEach((b, i) =>
   })
 );
 
-// ---------- отрисовка ----------
-const PILL = { on: "ОНЛАЙН", connecting: "ПОДКЛЮЧЕНИЕ", error: "ОШИБКА", off: "ОФФЛАЙН" };
 let shownServer = null;
 
 function renderState(s) {
   document.body.className = s.status;
   window.setBgMode?.(s.status);
-  $("pill").querySelector("span").textContent = PILL[s.status] || PILL.off;
   $("power").setAttribute("aria-label", s.status === "on" ? "Отключить" : "Подключить");
   if (!speedTesting) $("speedBtn").textContent = speedLabel(s.status);
 
@@ -119,7 +114,6 @@ function render(s, force) {
   renderList(s.listInfo, s.listLocal);
 }
 
-// ---------- график скорости ----------
 const gcv = $("graph");
 const gctx = gcv.getContext("2d");
 (() => { const dpr = Math.min(devicePixelRatio || 1, 2); gcv.width = gcv.clientWidth * dpr; gcv.height = gcv.clientHeight * dpr; gctx.scale(dpr, dpr); })();
@@ -157,7 +151,6 @@ function drawGraph(hist) {
   gctx.fillStyle = "#00ff66"; gctx.beginPath(); gctx.arc(lx - 1, ly, 2.5, 0, 6.29); gctx.fill();
 }
 
-// ---------- IP ----------
 let ip = "", ipLoaded = false;
 async function loadIp() {
   if (ipLoaded) return;
@@ -169,7 +162,6 @@ async function loadIp() {
   } catch { ipLoaded = false; }
 }
 
-// ---------- действия ----------
 $("power").addEventListener("click", async () => {
   ipLoaded = false; ip = "";
   const on = snap.state.status === "on" || snap.state.status === "connecting";
@@ -206,7 +198,6 @@ $("updList").addEventListener("click", async () => {
 
 $("resetTraffic").addEventListener("click", async () => render(await send({ type: "resetTraffic" })));
 
-// ---------- замер скорости (Cloudflare; в режиме «блокировки» этот домен принудительно идёт через VPN) ----------
 let speedTesting = false;
 function speedLabel(status) {
   return "Замерить скорость " + (status === "on" ? "(через VPN)" : "(без VPN)");
@@ -234,7 +225,7 @@ async function speedTest() {
     const times = [];
     for (let i = 0; i < 6; i++) {
       const ms = await timed(() => fetch("https://speed.cloudflare.com/__down?bytes=0", { cache: "no-store" }).then((r) => r.arrayBuffer()));
-      if (i > 0) times.push(ms); // первый запрос включает установку соединения
+      if (i > 0) times.push(ms);
     }
     times.sort((a, b) => a - b);
     out.ping = Math.round(times[Math.floor(times.length / 2)]) + " мс"; show();
@@ -269,7 +260,6 @@ async function speedTest() {
 }
 $("speedBtn").addEventListener("click", speedTest);
 
-// ---------- старт ----------
 chrome.runtime.onMessage.addListener((m) => {
   if (m.type === "state" && snap) { snap.state = m.state; renderState(m.state); }
 });

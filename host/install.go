@@ -85,7 +85,7 @@ func hostManifest(exePath string) ([]byte, error) {
 		"description":     "VPN Terminal host",
 		"path":            exePath,
 		"type":            "stdio",
-		"allowed_origins": []string{"chrome-extension://" + extID + "/"},
+		"allowed_origins": allowedOrigins(),
 	}, "", "  ")
 }
 

@@ -362,21 +362,3 @@ func isSupportedLink(line string) bool {
 	}
 	return false
 }
-
-// selectLink берёт первую поддерживаемую ссылку из тела подписки (обычный текст или base64).
-func selectLink(body string) (string, error) {
-	text := strings.TrimSpace(body)
-	first, _, _ := strings.Cut(text, "\n")
-	if !strings.Contains(first, "://") {
-		if dec, err := b64Decode(text); err == nil {
-			text = dec
-		}
-	}
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		if isSupportedLink(line) {
-			return line, nil
-		}
-	}
-	return "", errors.New("в подписке нет поддерживаемых ссылок")
-}

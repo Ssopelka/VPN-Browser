@@ -5,6 +5,11 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -43,14 +48,18 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
-        run: go build -trimpath -tags with_utls -ldflags "-s -w ${{ matrix.ldflags }} -X main.version=${GITHUB_REF_NAME}" -o "dist/${{ matrix.out }}" ./host
+        run: |
+          VER="${GITHUB_REF_NAME}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VER="v2.0.${{ github.run_number }}"; fi
+          go build -trimpath -tags with_utls -ldflags "-s -w ${{ matrix.ldflags }} -X main.version=${VER}" -o "dist/${{ matrix.out }}" ./host
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.out }}
           path: dist/${{ matrix.out }}
 
+  # Релиз публикуется на каждый push в main (тег v2.0.<номер запуска>) и на любой вручную запущенный тег v*.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -64,4 +73,8 @@ jobs:
         run: cd dist && sha256sum * > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          name: VPN Terminal ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}
+          generate_release_notes: true
           files: dist/*

@@ -4,7 +4,7 @@
   const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
   const FPS = 30;
   const THEMES = {
-    off: { c: [158, 166, 178], bg0: [24, 27, 32], bg1: [7, 8, 10], speed: 0.5 },
+    off: { c: [108, 170, 130], bg0: [15, 31, 23], bg1: [5, 8, 6], speed: 0.5 },
     connecting: { c: [255, 200, 0], bg0: [37, 29, 5], bg1: [9, 7, 0], speed: 1.4 },
     on: { c: [0, 255, 102], bg0: [7, 40, 26], bg1: [2, 6, 4], speed: 0.8 },
     error: { c: [255, 59, 78], bg0: [36, 7, 9], bg1: [9, 2, 3], speed: 0.45 },

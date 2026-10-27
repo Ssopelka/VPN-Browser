@@ -1,21 +1,21 @@
 @font-face { font-family: 'HACKED'; src: url('fonts/HACKED.ttf') format('truetype'); font-display: swap; }
 
-@property --rgb { syntax: '<number>#'; inherits: true; initial-value: 176, 184, 196; }
-@property --hi { syntax: '<number>#'; inherits: true; initial-value: 228, 233, 241; }
-@property --dk { syntax: '<number>#'; inherits: true; initial-value: 44, 48, 56; }
-@property --g { syntax: '<color>'; inherits: true; initial-value: #b9c1cc; }
-@property --soft { syntax: '<color>'; inherits: true; initial-value: #e4e8ef; }
-@property --mute { syntax: '<color>'; inherits: true; initial-value: #6a727d; }
-@property --bg0 { syntax: '<color>'; inherits: true; initial-value: #181b20; }
-@property --bg1 { syntax: '<color>'; inherits: true; initial-value: #07080a; }
-@property --gray { syntax: '<number>'; inherits: true; initial-value: 1; }
+@property --rgb { syntax: '<number>#'; inherits: true; initial-value: 108, 170, 130; }
+@property --hi { syntax: '<number>#'; inherits: true; initial-value: 200, 235, 212; }
+@property --dk { syntax: '<number>#'; inherits: true; initial-value: 24, 52, 36; }
+@property --g { syntax: '<color>'; inherits: true; initial-value: #7fbf98; }
+@property --soft { syntax: '<color>'; inherits: true; initial-value: #d6efe0; }
+@property --mute { syntax: '<color>'; inherits: true; initial-value: #5f7d6b; }
+@property --bg0 { syntax: '<color>'; inherits: true; initial-value: #0f1f17; }
+@property --bg1 { syntax: '<color>'; inherits: true; initial-value: #050806; }
+@property --gray { syntax: '<number>'; inherits: true; initial-value: 0.45; }
 @property --hue { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
 
 :root { --r: #ff3b4e; --y: #ffd400; --c: #2ee6ff; --mono: 'HACKED', 'Courier New', 'Consolas', monospace; }
 
 body {
-  --g: #b9c1cc; --rgb: 176,184,196; --hi: 228,233,241; --dk: 44,48,56; --soft: #e4e8ef; --mute: #6a727d;
-  --bg0: #181b20; --bg1: #07080a; --gray: 1; --hue: 0deg;
+  --g: #7fbf98; --rgb: 108,170,130; --hi: 200,235,212; --dk: 24,52,36; --soft: #d6efe0; --mute: #5f7d6b;
+  --bg0: #0f1f17; --bg1: #050806; --gray: 0.45; --hue: 0deg;
   transition: --g .9s ease, --rgb .9s ease, --hi .9s ease, --dk .9s ease, --soft .9s ease, --mute .9s ease, --bg0 .9s ease, --bg1 .9s ease, --gray .9s ease, --hue .9s ease;
   --g3: rgba(var(--rgb), .2);
   --glass: linear-gradient(150deg, rgba(var(--hi), .15) 0%, rgba(var(--hi), .04) 26%, rgba(var(--hi), 0) 50%),

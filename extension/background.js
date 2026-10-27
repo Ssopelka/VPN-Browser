@@ -1,5 +1,9 @@
 const HOST = "net.stealthsurf.vpn_host";
-const LOCAL_SOCKS_PORT = 10808;
+// Заглушка для kill-switch: порт 1 никто не слушает, поэтому запросы к проксируемым хостам падают, а не уходят напрямую.
+const DEAD = "PROXY 127.0.0.1:1";
+const RETRY_MS = [2000, 5000, 15000];
+const MAX_LIST_BYTES = 8 * 1024 * 1024;
+const MAX_STR = 20000;
 const DAY = 24 * 3600 * 1000;
 
 const DEFAULTS = {
@@ -22,11 +26,28 @@ const ALWAYS_PROXY = ["speed.cloudflare.com", "api.ipify.org"];
 
 let settings = { ...DEFAULTS };
 let state = { status: "off", message: "", server: "" }; // off | connecting | on | error
-let endpoint = ""; // строка PAC вида "SOCKS5 127.0.0.1:10808"
+let endpoint = ""; // строка PAC вида "PROXY 127.0.0.1:<порт>" (или DEAD при блокировке)
 let traffic = { downTotal: 0, upTotal: 0, downSess: 0, upSess: 0, sessStart: 0 };
 let listInfo = { count: 0, updated: 0 };
 let sets = { blocked: new Set(), include: new Set(), exclude: new Set(), always: new Set(ALWAYS_PROXY) };
 let port = null;
+let reconnects = 0;
+let reconnectTimer = null;
+
+// Допустимые ключи настроек и их типы: всё остальное, пришедшее в saveSettings, отбрасываем.
+const SCHEMA = {
+  source: "string", mode: ["all", "blocked"], include: "string", exclude: "string", listUrls: "string",
+  autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean",
+};
+function sanitize(patch) {
+  const out = {};
+  for (const [k, t] of Object.entries(SCHEMA)) {
+    const v = patch && Object.prototype.hasOwnProperty.call(patch, k) ? patch[k] : undefined;
+    if (v === undefined) continue;
+    if (Array.isArray(t) ? t.includes(v) : typeof v === t && (t !== "string" || v.length <= MAX_STR)) out[k] = v;
+  }
+  return out;
+}
 
 // ---------- загрузка / сохранение ----------
 const boot = (async () => {
@@ -122,7 +143,7 @@ function FindProxyForURL(url,host){
 }
 
 async function applyProxy() {
-  if (state.status !== "on" || !endpoint) return;
+  if (!endpoint || (state.status !== "on" && endpoint !== DEAD)) return;
   await chrome.proxy.settings.set({
     scope: "regular",
     value: { mode: "pac_script", pacScript: { data: buildPac(), mandatory: true } },
@@ -148,6 +169,8 @@ function parseDirect(input) {
   const isHttpsProxy = scheme === "https" && (u.pathname === "/" || u.pathname === "") && !u.search;
   if (!isProxyScheme && !isHttpsProxy) return null;
   if (!u.hostname || !u.port) return null;
+  // хост попадает в строку PAC («PROXY host:port; DIRECT»), поэтому пропускаем только безопасные символы
+  if (!/^(\[[0-9a-f:.]+\]|[a-z0-9]([a-z0-9.-]*[a-z0-9])?)$/i.test(u.hostname)) return null;
   const pacScheme = { socks5: "SOCKS5", socks: "SOCKS5", socks4: "SOCKS", http: "PROXY", https: "HTTPS" }[scheme];
   return {
     scheme: pacScheme, host: u.hostname, port: Number(u.port),
@@ -159,7 +182,11 @@ chrome.webRequest.onAuthRequired.addListener(
   (details, cb) => {
     if (!details.isProxy) return cb({});
     chrome.storage.session.get("auth").then(({ auth }) => {
-      cb(auth && auth.user ? { authCredentials: { username: auth.user, password: auth.pass } } : {});
+      // отдаём пароль только тому прокси, который мы сами настроили, а не любому, кто запросил авторизацию
+      const bare = (h) => String(h || "").replace(/^\[|\]$/g, "").toLowerCase();
+      const ch = details.challenger || {};
+      const mine = auth && auth.user && bare(ch.host) === bare(auth.host) && Number(ch.port) === Number(auth.port);
+      cb(mine ? { authCredentials: { username: auth.user, password: auth.pass } } : {});
     });
   },
   { urls: ["<all_urls>"] },
@@ -167,7 +194,7 @@ chrome.webRequest.onAuthRequired.addListener(
 );
 
 // ---------- трафик и скорость ----------
-// режим ядра: точные байты из sing-box (clash API хоста); режим прямого прокси: оценка по Content-Length.
+// режим ядра: точные байты из встроенного sing-box (хост шлёт счётчики); режим прямого прокси: оценка по Content-Length.
 let flushTimer = null;
 function scheduleFlush() {
   if (flushTimer) return;
@@ -243,7 +270,9 @@ async function updateList() {
     try {
       const r = await fetch(u, { cache: "no-store" });
       if (!r.ok) continue;
-      parseDomains(await r.text()).forEach((d) => all.add(d));
+      const txt = await r.text();
+      if (txt.length > MAX_LIST_BYTES) continue;
+      parseDomains(txt).forEach((d) => all.add(d));
       ok++;
     } catch {}
   }
@@ -258,12 +287,32 @@ async function updateList() {
 
 // ---------- подключение ----------
 function disconnectHost() {
-  if (port) { try { port.postMessage({ cmd: "stop" }); port.disconnect(); } catch {} port = null; }
+  if (port) { const p = port; port = null; try { p.postMessage({ cmd: "stop" }); p.disconnect(); } catch {} }
 }
 
-async function connect() {
-  await boot;
+// Аварийное состояние. Если VPN уже был поднят (endpoint задан) и включён kill-switch, проксируемые хосты блокируются,
+// а не уходят напрямую, пока пользователь не отключится сам. Ошибка первого запуска (плохая ссылка и т.п.) интернет не блокирует.
+async function fail(message) {
   disconnectHost();
+  clearTimeout(reconnectTimer);
+  stopTick();
+  await chrome.storage.session.remove("auth");
+  if (settings.killSwitch && endpoint) {
+    endpoint = DEAD;
+    setState({ status: "error", message, server: "", health: null });
+    await applyProxy();
+  } else {
+    endpoint = "";
+    await clearProxy();
+    setState({ status: "error", message, server: "", health: null });
+  }
+}
+
+async function connect(auto = false) {
+  await boot;
+  clearTimeout(reconnectTimer);
+  disconnectHost();
+  if (!auto) reconnects = 0;
   await chrome.storage.session.remove("auth");
   traffic.downSess = traffic.upSess = 0;
   traffic.sessStart = Date.now();
@@ -274,53 +323,67 @@ async function connect() {
   if (settings.autoUpdate && Date.now() - listInfo.updated > DAY) updateList(); // фоном, не блокируем
 
   const input = (settings.source || "").trim();
-  if (!input) return setState({ status: "error", message: "Укажите ссылку или ключ в Настройках → Источник", server: "" });
+  if (!input) return fail("Укажите ссылку или ключ в Настройки → Источник");
   const direct = parseDirect(input);
   if (direct) {
     if (direct.scheme === "SOCKS5" && direct.user) {
-      return setState({ status: "error", message: "SOCKS5 с логином/паролем не поддерживается браузером — используйте http(s) прокси", server: "" });
+      return fail("SOCKS5 с логином/паролем не поддерживается браузером — используйте http(s) прокси");
     }
-    if (direct.user) await chrome.storage.session.set({ auth: { user: direct.user, pass: direct.pass } });
+    if (direct.user) await chrome.storage.session.set({ auth: { user: direct.user, pass: direct.pass, host: direct.host, port: direct.port } });
     endpoint = `${direct.scheme} ${direct.host}:${direct.port}`;
-    setState({ status: "on", message: "Подключено", server: `${direct.host}:${direct.port}` });
+    setState({ status: "on", message: "Подключено", server: `${direct.host}:${direct.port}`, health: null });
     return applyProxy();
   }
 
-  setState({ status: "connecting", message: "Запуск…", server: "" });
+  setState({ status: "connecting", message: auto ? "Переподключение…" : "Запуск…", server: "", health: null });
+  let p;
   try {
-    port = chrome.runtime.connectNative(HOST);
+    p = chrome.runtime.connectNative(HOST);
   } catch (e) {
-    return setState({ status: "error", message: String(e) });
+    return fail(String(e));
   }
-  port.onMessage.addListener(async (m) => {
+  port = p;
+  p.onMessage.addListener(async (m) => {
+    if (port !== p) return;
     if (m.event === "stats") return onHostStats(m);
     if (m.event === "progress") return setState({ message: m.message });
+    if (m.event === "health") return setState({ health: { ok: !!m.ok, ms: m.ms || 0, message: m.message || "" } });
     if (m.event === "started") {
-      endpoint = `SOCKS5 127.0.0.1:${LOCAL_SOCKS_PORT}`;
+      // порт и учётные данные локального прокси хост генерирует на каждый запуск
+      reconnects = 0;
+      endpoint = `PROXY 127.0.0.1:${m.port}`;
+      await chrome.storage.session.set({ auth: { user: m.user, pass: m.pass, host: "127.0.0.1", port: m.port } });
       setState({ status: "on", message: "Подключено", server: m.server });
       return applyProxy();
     }
-    if (m.event === "error") {
-      await clearProxy();
-      return setState({ status: "error", message: m.message, server: "" });
-    }
+    if (m.event === "error") return fail(m.message);
   });
-  port.onDisconnect.addListener(async () => {
-    const err = chrome.runtime.lastError?.message;
+  p.onDisconnect.addListener(async () => {
+    const err = chrome.runtime.lastError?.message || "";
+    if (port !== p) return; // отключили сами
     port = null;
     if (state.status === "off") return;
-    await clearProxy();
-    setState({
-      status: "error",
-      message: "Для VLESS/Hysteria/Trojan и др. нужен хост: запустите install.bat из папки VPN-Browser. Без него работают только socks5/http прокси." + (err ? " [" + err + "]" : ""),
-      server: "",
-    });
+    const missing = /not found|forbidden|not allowed/i.test(err);
+    if (!missing && reconnects < RETRY_MS.length) {
+      const d = RETRY_MS[reconnects++];
+      stopTick();
+      setState({ status: "connecting", message: `Переподключение через ${d / 1000} с…`, health: null });
+      reconnectTimer = setTimeout(() => connect(true), d);
+      return;
+    }
+    await fail(
+      missing
+        ? "Не найден хост. Запустите установщик vpn-terminal.exe (двойной клик). Без него работают только socks5/http прокси."
+        : "Хост завершился неожиданно" + (err ? " [" + err + "]" : "")
+    );
   });
-  port.postMessage({ cmd: "start", url: input, socksPort: LOCAL_SOCKS_PORT });
+  p.postMessage({ cmd: "start", url: input, port: 0 });
 }
 
 async function disconnect() {
-  setState({ status: "off", message: "", server: "" });
+  clearTimeout(reconnectTimer);
+  reconnects = 0;
+  setState({ status: "off", message: "", server: "", health: null });
   disconnectHost();
   stopTick();
   endpoint = "";
@@ -333,8 +396,9 @@ async function disconnect() {
 // ---------- сообщения ----------
 const snapshot = () => ({ state, settings, traffic, speed, realStats, listInfo, listLocal: sets.blocked.size });
 
-chrome.runtime.onMessage.addListener((msg, _s, reply) => {
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || msg.type === "state") return false;
+  if (sender.id !== chrome.runtime.id) return false; // только собственные страницы расширения
   (async () => {
     await boot;
     switch (msg.type) {
@@ -342,7 +406,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
       case "connect": await connect(); return snapshot();
       case "disconnect": await disconnect(); return snapshot();
       case "saveSettings":
-        settings = { ...settings, ...msg.settings };
+        settings = { ...settings, ...sanitize(msg.settings) };
         await chrome.storage.local.set({ settings });
         rebuildSets();
         await applyProxy();
@@ -361,11 +425,35 @@ chrome.runtime.onInstalled.addListener(async () => {
   await boot;
   const { settings: s } = await chrome.storage.local.get("settings");
   if (!s) await chrome.storage.local.set({ settings });
+  // расширение переустановили/обновили/перезагрузили: поднимаем VPN, если включено автоподключение
+  if (settings.autoConnect && state.status === "off") connect();
 });
 
+// Старт браузера. Прокси от прошлой сессии указывает на мёртвый порт, поэтому сбрасываем его.
+// При автоподключении с kill-switch держим блокировку, пока VPN не поднимется, — иначе первые запросы ушли бы напрямую.
 chrome.runtime.onStartup.addListener(async () => {
   await boot;
-  await clearProxy(); // после перезапуска браузера хоста нет — убираем возможный «висящий» прокси
-  setState({ status: "off", message: "", server: "" });
-  if (settings.autoConnect) connect();
+  disconnectHost();
+  reconnects = 0;
+  if (settings.autoConnect) {
+    if (settings.killSwitch && settings.mode === "all") {
+      endpoint = DEAD;
+      await applyProxyForce();
+    } else {
+      await clearProxy();
+    }
+    connect();
+  } else {
+    await clearProxy();
+    endpoint = "";
+    setState({ status: "off", message: "", server: "", health: null });
+  }
 });
+
+// блокирующий PAC до готовности VPN (status ещё "off"/"connecting")
+async function applyProxyForce() {
+  await chrome.proxy.settings.set({
+    scope: "regular",
+    value: { mode: "pac_script", pacScript: { data: buildPac(), mandatory: true } },
+  });
+}

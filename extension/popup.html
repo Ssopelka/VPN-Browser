@@ -14,7 +14,7 @@
         <img src="icons/icon48.png" alt="" width="26" height="26">
         <h1>VPN TERMINAL</h1>
       </div>
-      <div id="pill" class="pill"><i></i><span>ОФФЛАЙН</span></div>
+      <div id="pill" class="pill" role="status" aria-live="polite"><i class="dot"></i><span>ОФФЛАЙН</span></div>
     </header>
 
     <nav>
@@ -50,6 +50,11 @@
         <span class="seg-ink"></span>
       </div>
 
+      <label class="sw tile auto">
+        <input type="checkbox" id="autoConnect"><i></i>
+        <span><b>Автоподключение</b><small>включать VPN при запуске браузера</small></span>
+      </label>
+
       <div class="panel speed">
         <div class="speed-row">
           <div><span class="lbl"><b class="dn">↓</b> ЗАГРУЗКА</span><strong id="spdDown">0</strong><em id="spdDownU">Кбит/с</em></div>
@@ -74,7 +79,6 @@
         <label for="source">Источник</label>
         <input id="source" spellcheck="false" autocomplete="off" placeholder="https://… / vless://… / hysteria2://…">
         <div class="hint">ссылка-подписка · vless · vmess · trojan · ss · hysteria2 · hysteria · tuic · anytls · socks5://host:port · http(s)://host:port</div>
-        <label class="sw"><input type="checkbox" id="autoConnect"><i></i><span>Подключаться при запуске браузера</span></label>
         <label class="sw"><input type="checkbox" id="killSwitch"><i></i><span>Kill-switch: не открывать сайты напрямую, если VPN упал</span></label>
       </div>
 

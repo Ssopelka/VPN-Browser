@@ -11,12 +11,13 @@
   };
   const LAYERS = [
     { n: 9, r0: 6, r1: 13, scale: 4, speed: 0.6, alpha: 0.5, bright: 0.65, mouse: 0 },
-    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 1, mouse: 1 },
+    { n: 12, r0: 8, r1: 22, scale: 2, speed: 1, alpha: 1, bright: 1, mouse: 1, land: true },
     { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1.15, mouse: 1.6 },
   ];
 
   const WORLD_VIEW = { z: 0.12, lon: 10, lat: 18 };
   const ZOOM_TO = 0.82;
+  const LAND_K = 3;
   let mapPath = null;
   let target = null;
   const view = { ...WORLD_VIEW };
@@ -46,45 +47,45 @@
     lock = target ? Math.min(1, Math.max(0, (view.z - WORLD_VIEW.z) / (ZOOM_TO - WORLD_VIEW.z))) : 0;
   }
 
-  function drawMap(r, g, b) {
+  const viewScale = () => (W / 360) * Math.exp(view.z * 2.4);
+  const focus = () => ({ x: W / 2, y: H * (0.45 + 0.25 * lock) });
+
+  function updateLand(L) {
     if (!mapPath) return;
-    const s = (W / 360) * Math.exp(view.z * 2.4);
-    const fx = W / 2, fy = H * (0.45 + 0.15 * lock);
-    ctx.save();
-    ctx.translate(fx - (view.lon + 180) * s, fy - (90 - view.lat) * s);
-    ctx.scale(s, s);
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 0.6 / s * 1.4;
-    ctx.strokeStyle = `rgba(${r},${g},${b},.07)`;
-    ctx.beginPath();
-    for (let x = 0; x <= 360; x += 30) { ctx.moveTo(x, 0); ctx.lineTo(x, 180); }
-    for (let y = 0; y <= 180; y += 30) { ctx.moveTo(0, y); ctx.lineTo(360, y); }
-    ctx.stroke();
-    ctx.fillStyle = `rgba(${r},${g},${b},${0.14 + 0.06 * lock})`;
-    ctx.fill(mapPath);
-    ctx.lineWidth = 1.2 / s * 1.4;
-    ctx.strokeStyle = `rgba(${r},${g},${b},${0.5 + 0.2 * lock})`;
-    ctx.stroke(mapPath);
-    ctx.restore();
-    if (target && lock > 0.2) {
-      const px = fx + (target.lon - view.lon) * s, py = fy + (view.lat - target.lat) * s;
-      const a = Math.min(1, (lock - 0.2) / 0.5);
-      for (let i = 0; i < 2; i++) {
-        const t = ((clock * 0.5 + i * 0.5) % 1);
-        ctx.strokeStyle = `rgba(${r},${g},${b},${(1 - t) * 0.85 * a})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(px, py, 6 + t * 34, 0, 6.2832);
-        ctx.stroke();
-      }
-      ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-      ctx.shadowColor = `rgb(${r},${g},${b})`;
-      ctx.shadowBlur = 16;
+    const { mctx, fw, fh, land } = L;
+    const sc = L.cfg.scale, s = viewScale(), f = focus();
+    mctx.clearRect(0, 0, fw, fh);
+    mctx.save();
+    mctx.filter = "blur(1.2px)";
+    mctx.translate((f.x - (view.lon + 180) * s) / sc, (f.y - (90 - view.lat) * s) / sc);
+    mctx.scale(s / sc, s / sc);
+    mctx.fillStyle = "#fff";
+    mctx.fill(mapPath);
+    mctx.restore();
+    const d = mctx.getImageData(0, 0, fw, fh).data;
+    for (let i = 0; i < land.length; i++) land[i] = d[i * 4 + 3] / 255;
+  }
+
+  function drawPin(r, g, b) {
+    if (!target || lock < 0.2) return;
+    const s = viewScale(), f = focus();
+    const px = f.x + (target.lon - view.lon) * s, py = f.y + (view.lat - target.lat) * s;
+    const a = Math.min(1, (lock - 0.2) / 0.5);
+    for (let i = 0; i < 2; i++) {
+      const t = (clock * 0.5 + i * 0.5) % 1;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(1 - t) * 0.85 * a})`;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px, py, 5, 0, 6.2832);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.arc(px, py, 6 + t * 34, 0, 6.2832);
+      ctx.stroke();
     }
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.shadowColor = `rgb(${r},${g},${b})`;
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, 6.2832);
+    ctx.fill();
+    ctx.shadowBlur = 0;
   }
 
   let W = 0, H = 0;
@@ -130,7 +131,15 @@
         x: 0, y: 0, ox: 0, oy: 0,
       });
     }
-    return { cfg, fw, fh, canvas, sctx, img: sctx.createImageData(fw, fh), field: new Float32Array(fw * fh), blobs };
+    const L = { cfg, fw, fh, canvas, sctx, img: sctx.createImageData(fw, fh), field: new Float32Array(fw * fh), blobs };
+    if (cfg.land) {
+      const m = document.createElement("canvas");
+      m.width = fw;
+      m.height = fh;
+      L.mctx = m.getContext("2d", { willReadFrequently: true });
+      L.land = new Float32Array(fw * fh);
+    }
+    return L;
   }
 
   function resize() {
@@ -183,6 +192,8 @@
     const { fw, fh, field, blobs, img, cfg } = L;
     const sc = cfg.scale;
     const n = blobs.length;
+    const land = L.land;
+    if (land) updateLand(L);
     for (let j = 0; j < fh; j++) {
       const py = j * sc;
       for (let i = 0; i < fw; i++) {
@@ -193,7 +204,7 @@
           const dx = px - b.x, dy = py - b.y;
           f += (b.r * b.r) / (dx * dx + dy * dy + 40);
         }
-        field[j * fw + i] = f;
+        field[j * fw + i] = land ? f + land[j * fw + i] * LAND_K : f;
       }
     }
     const [cr, cg, cb] = cur.c;
@@ -255,8 +266,6 @@
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    drawMap(r, g, b);
-
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     renderLayer(layers[0]);
@@ -270,6 +279,7 @@
 
     renderLayer(layers[1]);
     renderLayer(layers[2]);
+    drawPin(r, g, b);
 
     const glow = ctx.createLinearGradient(0, H * 0.6, 0, H);
     glow.addColorStop(0, `rgba(${r},${g},${b},0)`);

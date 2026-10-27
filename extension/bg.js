@@ -3,9 +3,9 @@
   const ctx = cv.getContext("2d", { alpha: false });
   const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
   const FPS = 30;
-  const SCALE = 3;
+  const SCALE = 2;
   const COLORS = { off: [0, 200, 90], on: [0, 255, 102], connecting: [255, 212, 0], error: [255, 59, 78] };
-  const SPEED = { off: 1, on: 1.6, connecting: 2.6, error: 0.8 };
+  const SPEED = { off: 0.55, on: 0.85, connecting: 1.5, error: 0.45 };
 
   let W = 0, H = 0, fw = 0, fh = 0;
   let field, img, small, sctx;
@@ -55,8 +55,8 @@
         cy: H * (0.1 + 0.8 * Math.random()),
         ax: 14 + Math.random() * 36,
         ay: H * (0.18 + Math.random() * 0.3),
-        wx: 0.18 + Math.random() * 0.25,
-        wy: 0.1 + Math.random() * 0.18,
+        wx: 0.14 + Math.random() * 0.2,
+        wy: 0.08 + Math.random() * 0.14,
         px: Math.random() * 6.28,
         py: Math.random() * 6.28,
         r: 8 + Math.random() * 17,
@@ -122,7 +122,7 @@
         const idx = j * fw + i;
         const f = field[idx];
         const o = idx * 4;
-        const edge = smooth(0.82, 1.1, f);
+        const edge = smooth(0.9, 1.04, f);
         if (edge <= 0) { data[o + 3] = 0; continue; }
         const fx = field[j * fw + Math.min(fw - 1, i + 1)] - field[j * fw + Math.max(0, i - 1)];
         const fy = field[Math.min(fh - 1, j + 1) * fw + i] - field[Math.max(0, j - 1) * fw + i];

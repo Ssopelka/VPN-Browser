@@ -23,8 +23,7 @@ body {
            linear-gradient(180deg, rgba(var(--rgb), .015), rgba(var(--dk), .05));
   --blur: blur(6px) saturate(150%) brightness(1) contrast(1.04);
   --lens: url(#lens) blur(6px) saturate(150%) brightness(1) contrast(1.04);
-  --rim: inset 0 1.5px 0 rgba(var(--hi), .6), inset 1.5px 0 0 rgba(var(--hi), .28), inset 0 -1.5px 0 rgba(var(--rgb), .28),
-         inset 0 0 14px rgba(var(--rgb), .05);
+  --rim: inset 0 1px 0 rgba(var(--hi), .3);
   --lift: 0 1px 2px rgba(0,0,0,.4);
   --edge: rgba(var(--hi), .26);
 }
@@ -141,7 +140,7 @@ body.error .status { font-size: 12px; letter-spacing: 0; line-height: 1.4; }
   position: relative;
   background: var(--glass);
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); backdrop-filter: var(--lens);
-  border: 1px solid var(--edge); border-top-color: rgba(var(--hi),.38); border-left-color: rgba(var(--hi),.28);
+  border: 1px solid transparent;
   box-shadow: var(--rim), var(--lift);
 }
 .panel, .group { border-radius: 18px; }
@@ -242,7 +241,7 @@ select option { background: #04120a; color: var(--soft); }
 #logView { font-size: 10px; line-height: 1.4; resize: none; white-space: pre; overflow: auto; }
 
 .panel::before, .card::before, .group::before, nav::before, .seg::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.3px; pointer-events: none;
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1.2px; pointer-events: none;
   background: linear-gradient(135deg, rgba(var(--hi),.95) 0%, rgba(var(--rgb),.10) 32%, rgba(var(--rgb),.04) 62%, rgba(var(--hi),.65) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);

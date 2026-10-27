@@ -50,7 +50,13 @@
   }
 
   const viewScale = () => (W / 360) * Math.exp(view.z * 2.4);
-  const focus = () => ({ x: W / 2, y: H * (0.45 + 0.25 * lock) });
+  const powerBtn = document.getElementById("power");
+  function focus() {
+    const r = powerBtn && powerBtn.getBoundingClientRect();
+    const by = r && r.width ? r.top + r.height / 2 : H * 0.31;
+    const bx = r && r.width ? r.left + r.width / 2 : W / 2;
+    return { x: W / 2 + (bx - W / 2) * lock, y: H * 0.45 + (by - H * 0.45) * lock };
+  }
 
   function updateLand(L) {
     if (!mapPath) return;

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	app "github.com/Ssopelka/VPN-Browser"
 )
@@ -49,9 +50,16 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	// запущенный exe на Windows нельзя перезаписать, но можно переименовать
-	_ = os.Remove(dst + ".old")
+	old, _ := filepath.Glob(dst + ".old*")
+	for _, f := range old {
+		_ = os.Remove(f)
+	}
 	if _, err := os.Stat(dst); err == nil {
-		if err := os.Rename(dst, dst+".old"); err != nil {
+		aside := dst + ".old"
+		if _, err := os.Stat(aside); err == nil {
+			aside = fmt.Sprintf("%s.old%d", dst, time.Now().UnixNano())
+		}
+		if err := os.Rename(dst, aside); err != nil {
 			return err
 		}
 	}
@@ -89,7 +97,7 @@ func hostManifest(exePath string) ([]byte, error) {
 	}, "", "  ")
 }
 
-func install() (string, error) {
+func install(open bool) (string, error) {
 	dir, err := installDir()
 	if err != nil {
 		return "", err
@@ -120,7 +128,9 @@ func install() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	openFolder(extDir)
+	if open {
+		openFolder(extDir)
+	}
 	return fmt.Sprintf("Готово (браузеров: %d).\n\nОткройте browser://extensions, включите «Режим разработчика», нажмите «Загрузить распакованное расширение» и выберите папку:\n%s", n, extDir), nil
 }
 

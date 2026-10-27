@@ -42,12 +42,19 @@ func main() {
 	}
 	switch cmd {
 	case "install":
-		report(install())
+		report(install(true))
+	case "setup":
+		if _, err := install(false); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	case "update":
+		report(updateCLI())
 	case "uninstall", "remove":
 		report(uninstall())
 	case "version":
 		fmt.Println(version)
 	default:
-		fmt.Println("VPN Terminal " + version + "\n\nvpn-terminal install    — установить (по умолчанию при двойном клике)\nvpn-terminal uninstall  — удалить")
+		fmt.Println("VPN Terminal " + version + "\n\nvpn-terminal install    — установить (по умолчанию при двойном клике)\nvpn-terminal update     — обновить до последней версии\nvpn-terminal uninstall  — удалить")
 	}
 }

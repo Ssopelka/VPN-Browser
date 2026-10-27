@@ -15,6 +15,78 @@
     { n: 5, r0: 20, r1: 32, scale: 3, speed: 1.3, alpha: 0.8, bright: 1.15, mouse: 1.6 },
   ];
 
+  const WORLD_VIEW = { z: 0.12, lon: 10, lat: 18 };
+  const ZOOM_TO = 0.82;
+  let mapPath = null;
+  let target = null;
+  const view = { ...WORLD_VIEW };
+  let lock = 0;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function buildMap() {
+    if (!Array.isArray(window.WORLD)) return;
+    mapPath = new Path2D();
+    for (const r of window.WORLD) {
+      mapPath.moveTo(r[0] / 10, r[1] / 10);
+      for (let i = 2; i < r.length; i += 2) {
+        if (Math.abs(r[i] - r[i - 2]) > 1800) mapPath.moveTo(r[i] / 10, r[i + 1] / 10);
+        else mapPath.lineTo(r[i] / 10, r[i + 1] / 10);
+      }
+      mapPath.closePath();
+    }
+  }
+
+  function stepView(dt) {
+    const goal = target ? { z: ZOOM_TO, lon: target.lon, lat: target.lat } : WORLD_VIEW;
+    const kz = reduced ? 1 : 1 - Math.exp(-dt * 2.1);
+    const kp = reduced ? 1 : 1 - Math.exp(-dt * 3.2);
+    view.z += (goal.z - view.z) * kz;
+    view.lon += (goal.lon - view.lon) * kp;
+    view.lat += (goal.lat - view.lat) * kp;
+    lock = target ? Math.min(1, Math.max(0, (view.z - WORLD_VIEW.z) / (ZOOM_TO - WORLD_VIEW.z))) : 0;
+  }
+
+  function drawMap(r, g, b) {
+    if (!mapPath) return;
+    const s = (W / 360) * Math.exp(view.z * 2.4);
+    const fx = W / 2, fy = H * (0.45 + 0.15 * lock);
+    ctx.save();
+    ctx.translate(fx - (view.lon + 180) * s, fy - (90 - view.lat) * s);
+    ctx.scale(s, s);
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 0.6 / s * 1.4;
+    ctx.strokeStyle = `rgba(${r},${g},${b},.07)`;
+    ctx.beginPath();
+    for (let x = 0; x <= 360; x += 30) { ctx.moveTo(x, 0); ctx.lineTo(x, 180); }
+    for (let y = 0; y <= 180; y += 30) { ctx.moveTo(0, y); ctx.lineTo(360, y); }
+    ctx.stroke();
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.14 + 0.06 * lock})`;
+    ctx.fill(mapPath);
+    ctx.lineWidth = 1.2 / s * 1.4;
+    ctx.strokeStyle = `rgba(${r},${g},${b},${0.5 + 0.2 * lock})`;
+    ctx.stroke(mapPath);
+    ctx.restore();
+    if (target && lock > 0.2) {
+      const px = fx + (target.lon - view.lon) * s, py = fy + (view.lat - target.lat) * s;
+      const a = Math.min(1, (lock - 0.2) / 0.5);
+      for (let i = 0; i < 2; i++) {
+        const t = ((clock * 0.5 + i * 0.5) % 1);
+        ctx.strokeStyle = `rgba(${r},${g},${b},${(1 - t) * 0.85 * a})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, 6 + t * 34, 0, 6.2832);
+        ctx.stroke();
+      }
+      ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+      ctx.shadowColor = `rgb(${r},${g},${b})`;
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, 6.2832);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
   let W = 0, H = 0;
   let layers = [], dust = [];
   let mode = "off";
@@ -175,12 +247,15 @@
     const [r, g, b] = cur.c.map(Math.round);
 
     step(dt);
+    stepView(dt);
 
     const bg = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, H * 0.9);
     bg.addColorStop(0, `rgb(${cur.bg0.map(Math.round)})`);
     bg.addColorStop(1, `rgb(${cur.bg1.map(Math.round)})`);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
+
+    drawMap(r, g, b);
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -206,9 +281,10 @@
   function start() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; }
 
+  buildMap();
   resize();
   paintSprite();
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { frame(1e9); stop(); }
+  if (reduced) { frame(1e9); stop(); }
   else start();
 
   document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
@@ -216,4 +292,9 @@
   addEventListener("mouseleave", () => { mouse.x = mouse.y = -999; });
 
   window.setBgMode = (m) => { mode = THEMES[m] ? m : "off"; };
+  window.setBgTarget = (t) => {
+    const ok = t && Number.isFinite(t.lat) && Number.isFinite(t.lon);
+    target = ok ? { lat: Math.max(-80, Math.min(80, t.lat)), lon: t.lon } : null;
+    if (reduced) { frame(1e9); stop(); }
+  };
 })();

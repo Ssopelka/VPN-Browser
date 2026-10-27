@@ -22,8 +22,9 @@ const DEFAULTS = {
   bypassLan: true,
   webrtc: true,
   autoConnect: false,
+  autoUpdateHost: true,
 };
-const ALWAYS_PROXY = ["speed.cloudflare.com", "api.ipify.org"];
+const ALWAYS_PROXY = ["speed.cloudflare.com", "api.ipify.org", "ipwho.is"];
 
 let settings = { ...DEFAULTS };
 let state = { status: "off", message: "", server: "" };
@@ -53,7 +54,7 @@ function log(text) {
 
 const SCHEMA = {
   source: "string", server: "string", mode: ["all", "blocked"], include: "string", exclude: "string", listUrls: "string",
-  autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean",
+  autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean", autoUpdateHost: "boolean",
 };
 function sanitize(patch) {
   const out = {};
@@ -334,6 +335,7 @@ async function connect(auto = false) {
   lastHostStats = null;
   startTick();
   if (settings.autoUpdate && Date.now() - listInfo.updated > DAY) updateList();
+  autoHostUpdate();
 
   const input = (settings.source || "").trim();
   if (!input) return fail("Укажите ссылку или ключ в настройках");
@@ -437,6 +439,61 @@ async function listServers() {
   }
 }
 
+function hostCmd(msg, terminal, onProgress) {
+  return new Promise((resolve) => {
+    let p;
+    try { p = chrome.runtime.connectNative(HOST); } catch (e) { return resolve({ ok: false, error: String(e) }); }
+    let done = false;
+    const end = (r) => {
+      if (done) return;
+      done = true;
+      try { p.disconnect(); } catch {}
+      resolve(r);
+    };
+    p.onMessage.addListener((m) => {
+      if (m.event === "update-progress") return onProgress && onProgress(m.message);
+      if (m.event === "error") return end({ ok: false, error: m.message });
+      if (m.event === terminal) end({ ok: true, ...m });
+    });
+    p.onDisconnect.addListener(() => {
+      const e = chrome.runtime.lastError?.message || "Хост завершился";
+      end({ ok: false, error: /not found|forbidden|not allowed/i.test(e) ? "Не найден хост. Запустите установщик VPN Terminal." : e });
+    });
+    p.postMessage(msg);
+  });
+}
+
+async function checkHostUpdate() {
+  const r = await hostCmd({ cmd: "update-check" }, "update");
+  const hostUpdate = r.ok ? { checked: Date.now(), current: r.current, latest: r.latest, newer: !!r.newer } : { checked: Date.now(), error: r.error };
+  await chrome.storage.local.set({ hostUpdate });
+  log(r.ok ? `Версия хоста ${r.current}, последняя ${r.latest}` : "Проверка обновлений хоста: " + r.error);
+  return r.ok ? { ok: true, ...hostUpdate } : { ok: false, error: r.error };
+}
+
+async function applyHostUpdate() {
+  log("Обновление хоста");
+  const r = await hostCmd({ cmd: "update" }, "updated", (m) => chrome.runtime.sendMessage({ type: "hostProgress", message: m }).catch(() => {}));
+  if (!r.ok) {
+    log("Обновление хоста не удалось: " + r.error);
+    return { ok: false, error: r.error };
+  }
+  if (!r.changed) return { ok: true, changed: false, version: r.version };
+  log("Хост обновлён до " + r.version);
+  await chrome.storage.local.set({ hostUpdate: { checked: Date.now(), current: r.version, latest: r.version, newer: false } });
+  await chrome.storage.local.set({ resume: state.status === "on" || state.status === "connecting" });
+  setTimeout(() => chrome.runtime.reload(), 800);
+  return { ok: true, changed: true, version: r.version };
+}
+
+async function autoHostUpdate() {
+  if (!settings.autoUpdateHost || parseDirect((settings.source || "").trim())) return;
+  const { hostUpdate } = await chrome.storage.local.get("hostUpdate");
+  if (hostUpdate && Date.now() - hostUpdate.checked < DAY) return;
+  const r = await checkHostUpdate();
+  if (r.ok && r.newer) applyHostUpdate();
+}
+
 const snapshot = () => ({ state, settings, traffic, speed, realStats, listInfo, listLocal: sets.blocked.size, servers });
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -467,6 +524,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         return snapshot();
       }
       case "updateList": return await updateList();
+      case "checkHostUpdate": return await checkHostUpdate();
+      case "applyHostUpdate": return await applyHostUpdate();
       case "resetTraffic":
         traffic = { ...traffic, downTotal: 0, upTotal: 0, downSess: 0, upSess: 0 };
         await chrome.storage.local.set({ traffic });
@@ -480,7 +539,15 @@ chrome.runtime.onInstalled.addListener(async () => {
   await boot;
   const { settings: s } = await chrome.storage.local.get("settings");
   if (!s) await chrome.storage.local.set({ settings });
-  if (settings.autoConnect && state.status === "off") connect();
+  const { resume } = await chrome.storage.local.get("resume");
+  if (resume) {
+    await chrome.storage.local.remove("resume");
+    connect();
+  } else if (settings.autoConnect && state.status === "off") {
+    connect();
+  } else if (state.status === "off") {
+    await clearProxy();
+  }
 });
 
 // Прокси прошлой сессии указывает на мёртвый порт. При автоподключении с kill-switch держим блокировку, пока VPN не поднимется.

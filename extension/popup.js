@@ -39,6 +39,31 @@ document.querySelectorAll(".tab").forEach((b, i) =>
 );
 
 let shownServer = null;
+let geo = null;
+
+function flagImg(cc) {
+  const img = document.createElement("img");
+  img.className = cc ? "flag" : "flag none";
+  if (cc) {
+    img.src = `flags/${cc}.svg`;
+    img.alt = cc.toUpperCase();
+    img.onerror = () => img.classList.add("none");
+  }
+  return img;
+}
+
+function placeOnMap() {
+  const on = snap && snap.state.status === "on";
+  if (!window.setBgTarget) return;
+  if (!on) return window.setBgTarget(null);
+  const c = geo || (serverCode() && window.CENTROIDS && window.CENTROIDS[serverCode()] && { lat: window.CENTROIDS[serverCode()][0], lon: window.CENTROIDS[serverCode()][1] });
+  window.setBgTarget(c || null);
+}
+
+function serverCode() {
+  const s = snap && snap.state.status === "on" ? snap.state.server : "";
+  return (s && splitFlag(s).cc) || null;
+}
 
 function renderState(s) {
   document.body.className = s.status;
@@ -50,23 +75,20 @@ function renderState(s) {
     s.status === "on" ? "ЗАЩИЩЕНО" : s.status === "off" ? "ОТКЛЮЧЕНО" : s.status === "connecting" ? (s.message || "ПОДКЛЮЧЕНИЕ").toUpperCase() : s.message;
 
   const server = s.status === "on" ? s.server : "";
-  if (server !== shownServer) {
-    shownServer = server;
+  const key = server + "|" + (geo ? geo.cc : "");
+  if (key !== shownServer) {
+    shownServer = key;
     const box = $("server");
     box.textContent = "";
     if (server) {
       const { cc, text } = splitFlag(server);
-      if (cc) {
-        const img = document.createElement("img");
-        img.src = `flags/${cc}.svg`;
-        img.alt = cc.toUpperCase();
-        img.onerror = () => img.remove();
-        box.append(img);
-      }
+      const code = cc || (geo && geo.cc);
+      if (code) box.append(flagImg(code));
       box.append(document.createTextNode(text));
     }
   }
-  if (s.status === "on") loadIp(); else { ip = ""; ipLoaded = false; }
+  if (s.status === "on") loadIp(); else { ip = ""; ipLoaded = false; geo = null; }
+  placeOnMap();
   renderMeta();
 }
 
@@ -99,7 +121,7 @@ function renderSettings(s, force) {
   setSeg(s.mode);
   if (!force) return;
   for (const k of ["source", "include", "exclude", "listUrls"]) $(k).value = s[k] || "";
-  for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate"]) $(k).checked = !!s[k];
+  for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost"]) $(k).checked = !!s[k];
 }
 
 function renderList(info, local) {
@@ -112,24 +134,49 @@ function renderServers(s) {
   const box = $("serverBox");
   box.hidden = list.length < 2;
   if (box.hidden) return;
-  const sel = $("serverSel");
   const cur = s.settings.server || (s.state.status === "on" ? s.state.server : "") || list[0].name;
   const sig = list.map((x) => x.name).join("|") + "#" + cur;
-  if (sel.dataset.sig === sig) return;
-  sel.dataset.sig = sig;
-  sel.replaceChildren(...list.map((x) => {
-    const o = document.createElement("option");
-    o.value = x.name;
-    o.textContent = splitFlag(x.name).text + " · " + x.type;
-    o.selected = x.name === cur;
-    return o;
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  const label = (x) => {
+    const { cc, text } = splitFlag(x.name);
+    const nm = document.createElement("span");
+    nm.className = "nm";
+    nm.textContent = text;
+    return [flagImg(cc), nm];
+  };
+  const curItem = list.find((x) => x.name === cur) || list[0];
+  $("serverBtn").replaceChildren(...label(curItem));
+  $("serverList").replaceChildren(...list.map((x) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", String(x.name === cur));
+    const t = document.createElement("em");
+    t.textContent = x.type;
+    b.append(...label(x), t);
+    b.addEventListener("click", () => pickServer(x.name));
+    li.append(b);
+    return li;
   }));
 }
 
-$("serverSel").addEventListener("change", async () => {
-  snap = await send({ type: "saveSettings", settings: { server: $("serverSel").value } });
+function toggleServers(open) {
+  $("serverList").hidden = !open;
+  $("serverBtn").setAttribute("aria-expanded", String(open));
+}
+
+async function pickServer(name) {
+  toggleServers(false);
+  snap = await send({ type: "saveSettings", settings: { server: name } });
+  renderServers(snap);
   if (snap.state.status === "on" || snap.state.status === "connecting") render(await send({ type: "connect" }));
-});
+}
+
+$("serverBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleServers($("serverList").hidden); });
+document.addEventListener("click", (e) => { if (!$("serverPick").contains(e.target)) toggleServers(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleServers(false); });
 
 let tab = null;
 
@@ -272,14 +319,23 @@ async function loadIp() {
   if (ipLoaded) return;
   ipLoaded = true;
   try {
-    const r = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
-    ip = (await r.json()).ip;
+    try {
+      const r = await fetch("https://ipwho.is/?fields=success,ip,country_code,latitude,longitude", { cache: "no-store" });
+      const j = await r.json();
+      if (!j.success) throw new Error("geo");
+      ip = j.ip;
+      geo = { cc: String(j.country_code || "").toLowerCase(), lat: j.latitude, lon: j.longitude };
+    } catch {
+      const r = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
+      ip = (await r.json()).ip;
+    }
     renderMeta();
+    if (snap) renderState(snap.state);
   } catch { ipLoaded = false; }
 }
 
 $("power").addEventListener("click", async () => {
-  ipLoaded = false; ip = "";
+  ipLoaded = false; ip = ""; geo = null;
   const on = snap.state.status === "on" || snap.state.status === "connecting";
   render(await send({ type: on ? "disconnect" : "connect" }));
 });
@@ -287,7 +343,7 @@ $("power").addEventListener("click", async () => {
 document.querySelectorAll("#modeSeg button").forEach((b) =>
   b.addEventListener("click", async () => {
     setSeg(b.dataset.mode);
-    ipLoaded = false;
+    ipLoaded = false; geo = null;
     render(await send({ type: "saveSettings", settings: { mode: b.dataset.mode } }));
   })
 );
@@ -298,7 +354,7 @@ function saveForm() {
   saveTimer = setTimeout(async () => {
     const settings = {};
     for (const k of ["source", "include", "exclude", "listUrls"]) settings[k] = $(k).value.trim();
-    for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate"]) settings[k] = $(k).checked;
+    for (const k of ["killSwitch", "webrtc", "bypassLan", "autoConnect", "autoUpdate", "autoUpdateHost"]) settings[k] = $(k).checked;
     snap = await send({ type: "saveSettings", settings });
   }, 400);
 }
@@ -311,6 +367,68 @@ $("updList").addEventListener("click", async () => {
   b.disabled = false;
   if (r.ok) { snap.listInfo = r.listInfo; renderList(r.listInfo); } else $("listInfo").textContent = r.error;
 });
+
+const SETTING_KEYS = ["source", "mode", "include", "exclude", "listUrls", "autoUpdate", "killSwitch", "bypassLan", "webrtc", "autoConnect", "autoUpdateHost"];
+
+$("cfgExport").addEventListener("click", () => {
+  const settings = {};
+  for (const k of SETTING_KEYS) settings[k] = snap.settings[k];
+  const data = { app: "vpn-terminal", version: chrome.runtime.getManifest().version, exported: new Date().toISOString(), settings };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = "vpn-terminal-settings.json";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+$("cfgImport").addEventListener("click", () => $("cfgFile").click());
+$("cfgFile").addEventListener("change", async () => {
+  const f = $("cfgFile").files[0];
+  $("cfgFile").value = "";
+  if (!f) return;
+  const info = $("cfgInfo");
+  try {
+    if (f.size > 200 * 1024) throw new Error("файл слишком большой");
+    const data = JSON.parse(await f.text());
+    if (!data || data.app !== "vpn-terminal" || typeof data.settings !== "object" || !data.settings) throw new Error("это не файл настроек VPN Terminal");
+    const patch = {};
+    for (const k of SETTING_KEYS) if (k in data.settings) patch[k] = data.settings[k];
+    render(await send({ type: "saveSettings", settings: patch }), true);
+    info.textContent = "Настройки импортированы.";
+  } catch (e) {
+    info.textContent = "Не удалось импортировать: " + (e.message || e);
+  }
+});
+
+const hostBtn = $("hostCheck");
+let hostNewer = null;
+
+function showHostUpdate(u) {
+  if (!u) return;
+  if (u.error) { $("hostInfo").textContent = u.error; return; }
+  hostNewer = u.newer ? u.latest : null;
+  $("hostInfo").textContent = u.newer ? `Доступна ${u.latest}, установлена ${u.current}` : `Версия ${u.current}, обновлений нет`;
+  hostBtn.textContent = u.newer ? "Обновить" : "Проверить";
+}
+
+hostBtn.addEventListener("click", async () => {
+  hostBtn.disabled = true;
+  $("hostInfo").textContent = hostNewer ? "Обновление…" : "Проверка…";
+  const r = hostNewer ? await send({ type: "applyHostUpdate" }) : await send({ type: "checkHostUpdate" });
+  hostBtn.disabled = false;
+  if (!r.ok) { $("hostInfo").textContent = r.error; return; }
+  if (hostNewer) {
+    $("hostInfo").textContent = r.changed ? `Обновлено до ${r.version}, расширение перезапускается` : "Установлена последняя версия";
+    hostNewer = null;
+    hostBtn.textContent = "Проверить";
+    return;
+  }
+  showHostUpdate(r);
+});
+
+chrome.storage.local.get("hostUpdate").then(({ hostUpdate }) => showHostUpdate(hostUpdate));
 
 $("resetTraffic").addEventListener("click", async () => render(await send({ type: "resetTraffic" })));
 
@@ -389,6 +507,7 @@ $("speedBtn").addEventListener("click", speedTest);
 
 chrome.runtime.onMessage.addListener((m) => {
   if (m.type === "state" && snap) { snap.state = m.state; renderState(m.state); }
+  if (m.type === "hostProgress") $("hostInfo").textContent = m.message;
 });
 
 send({ type: "getState" }).then(async (s) => {

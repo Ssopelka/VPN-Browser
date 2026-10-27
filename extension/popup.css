@@ -249,3 +249,28 @@ select option { background: #04120a; color: var(--soft); }
 }
 
 .panel, .card, .group, nav, .seg { text-shadow: 0 1px 3px rgba(0,0,0,.6), 0 0 6px rgba(var(--rgb),.25); }
+
+#serverBox { z-index: 5; }
+.pick { position: relative; flex: 1; min-width: 0; }
+#serverBtn {
+  display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 8px; border-radius: 10px; font: 12px 'Consolas', 'Courier New', monospace; color: var(--g); text-align: left;
+  background: rgba(0,0,0,.35); border: 1px solid rgba(var(--hi),.2); cursor: pointer; text-shadow: none;
+}
+#serverBtn:focus-visible { outline: none; border-color: var(--g); }
+#serverBtn::after { content: '▾'; margin-left: auto; opacity: .7; }
+#serverBtn .nm, #serverList .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flag { flex: none; width: 20px; height: 15px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(var(--hi),.18), 0 0 8px rgba(var(--rgb),.25); }
+.flag.none { visibility: hidden; }
+#serverList {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; max-height: 196px; overflow-y: auto; list-style: none; padding: 4px; border-radius: 14px;
+  background: rgba(4,12,8,.88); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(var(--hi),.3); box-shadow: 0 14px 30px rgba(0,0,0,.55), inset 0 1px 0 rgba(var(--hi),.35);
+}
+#serverList[hidden] { display: none; }
+#serverList button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 9px; background: none; color: var(--g);
+  font: 12px 'Consolas', 'Courier New', monospace; text-align: left; cursor: pointer; text-shadow: none;
+}
+#serverList button:hover, #serverList button:focus-visible { background: rgba(var(--rgb),.18); outline: none; }
+#serverList button[aria-selected="true"] { background: rgba(var(--rgb),.28); color: var(--soft); }
+#serverList em { flex: none; font-style: normal; font-size: 10px; opacity: .55; }

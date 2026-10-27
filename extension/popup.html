@@ -58,7 +58,10 @@
 
       <div class="panel mini" id="serverBox" hidden>
         <span>Сервер</span>
-        <select id="serverSel" aria-label="Сервер"></select>
+        <div class="pick" id="serverPick">
+          <button type="button" id="serverBtn" aria-haspopup="listbox" aria-expanded="false"></button>
+          <ul id="serverList" role="listbox" hidden></ul>
+        </div>
       </div>
 
       <div class="panel mini" id="siteBox" hidden>
@@ -122,6 +125,25 @@
       </div>
 
       <div class="group">
+        <h3>Хост</h3>
+        <label class="sw"><input type="checkbox" id="autoUpdateHost"><i></i><span>Обновлять хост автоматически</span></label>
+        <div class="row">
+          <button id="hostCheck" class="ghost sm">Проверить</button>
+          <span id="hostInfo" class="hint"></span>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Резервная копия</h3>
+        <div class="row">
+          <button id="cfgExport" class="ghost sm">Экспорт</button>
+          <button id="cfgImport" class="ghost sm">Импорт</button>
+          <input type="file" id="cfgFile" accept="application/json,.json" hidden>
+        </div>
+        <div id="cfgInfo" class="hint">Файл содержит ссылку на подписку, храните его как пароль.</div>
+      </div>
+
+      <div class="group">
         <h3>Журнал</h3>
         <textarea id="logView" rows="6" readonly spellcheck="false"></textarea>
         <div class="row">
@@ -134,6 +156,7 @@
       <button id="resetTraffic" class="ghost sm danger">Сбросить счётчик трафика</button>
     </section>
   </main>
+  <script src="data/world.js"></script>
   <script src="bg.js"></script>
   <script src="popup.js"></script>
 </body>

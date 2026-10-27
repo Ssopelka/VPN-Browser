@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -56,6 +57,23 @@ func runHost() {
 				continue
 			}
 			_ = nm.send(obj{"event": "servers", "servers": servers})
+		case "update-check":
+			latest, newer, err := checkUpdate()
+			if err != nil {
+				_ = nm.send(obj{"event": "error", "message": err.Error()})
+				continue
+			}
+			_ = nm.send(obj{"event": "update", "current": version, "latest": latest, "newer": newer})
+		case "update":
+			tag, err := applyUpdate(func(s string) { _ = nm.send(obj{"event": "update-progress", "message": s}) })
+			switch {
+			case errors.Is(err, errUpToDate):
+				_ = nm.send(obj{"event": "updated", "version": tag, "changed": false})
+			case err != nil:
+				_ = nm.send(obj{"event": "error", "message": err.Error()})
+			default:
+				_ = nm.send(obj{"event": "updated", "version": tag, "changed": true})
+			}
 		case "start":
 			stop()
 			c, err := startCore(m.URL, m.Port, m.Server, func(s string) { _ = nm.send(obj{"event": "progress", "message": s}) })

@@ -56,7 +56,7 @@
     const sc = L.cfg.scale, s = viewScale(), f = focus();
     mctx.clearRect(0, 0, fw, fh);
     mctx.save();
-    mctx.filter = "blur(1.2px)";
+    mctx.filter = "blur(1.8px)";
     mctx.translate((f.x - (view.lon + 180) * s) / sc, (f.y - (90 - view.lat) * s) / sc);
     mctx.scale(s / sc, s / sc);
     mctx.fillStyle = "#fff";
@@ -215,7 +215,7 @@
         const idx = j * fw + i;
         const f = field[idx];
         const o = idx * 4;
-        const edge = smooth(0.9, 1.04, f);
+        const edge = smooth(0.87, 1.07, f);
         if (edge <= 0) { data[o + 3] = 0; continue; }
         const fx = field[j * fw + Math.min(fw - 1, i + 1)] - field[j * fw + Math.max(0, i - 1)];
         const fy = field[Math.min(fh - 1, j + 1) * fw + i] - field[Math.max(0, j - 1) * fw + i];

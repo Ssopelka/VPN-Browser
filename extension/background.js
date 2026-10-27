@@ -5,9 +5,11 @@ const RETRY_MS = [2000, 5000, 15000];
 const MAX_LIST_BYTES = 8 * 1024 * 1024;
 const MAX_STR = 20000;
 const DAY = 24 * 3600 * 1000;
+const LOG_MAX = 400;
 
 const DEFAULTS = {
   source: "",
+  server: "",
   mode: "all",
   include: "",
   exclude: "",
@@ -32,9 +34,25 @@ let sets = { blocked: new Set(), include: new Set(), exclude: new Set(), always:
 let port = null;
 let reconnects = 0;
 let reconnectTimer = null;
+let servers = [];
+let logBuf = [];
+let logTimer = null;
+let listTimer = null;
+
+const redact = (s) =>
+  String(s)
+    .replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, (m) => m.split("://")[0] + "://…")
+    .replace(/\b(?!127\.0\.0\.1\b)\d{1,3}(\.\d{1,3}){3}(:\d+)?\b/g, "x.x.x.x");
+
+function log(text) {
+  logBuf.push({ t: Date.now(), m: redact(text) });
+  if (logBuf.length > LOG_MAX) logBuf.splice(0, logBuf.length - LOG_MAX);
+  clearTimeout(logTimer);
+  logTimer = setTimeout(() => chrome.storage.local.set({ log: logBuf }), 1500);
+}
 
 const SCHEMA = {
-  source: "string", mode: ["all", "blocked"], include: "string", exclude: "string", listUrls: "string",
+  source: "string", server: "string", mode: ["all", "blocked"], include: "string", exclude: "string", listUrls: "string",
   autoUpdate: "boolean", killSwitch: "boolean", bypassLan: "boolean", webrtc: "boolean", autoConnect: "boolean",
 };
 function sanitize(patch) {
@@ -49,7 +67,7 @@ function sanitize(patch) {
 
 const boot = (async () => {
   const [l, s] = await Promise.all([
-    chrome.storage.local.get(["settings", "url", "traffic", "blocked", "listInfo"]),
+    chrome.storage.local.get(["settings", "url", "traffic", "blocked", "listInfo", "servers", "log"]),
     chrome.storage.session.get(["state", "endpoint"]),
   ]);
   settings = { ...DEFAULTS, ...(l.settings || {}) };
@@ -58,6 +76,8 @@ const boot = (async () => {
   if (s.state) state = s.state;
   if (s.endpoint) endpoint = s.endpoint;
   if (l.listInfo) listInfo = l.listInfo;
+  if (Array.isArray(l.servers)) servers = l.servers;
+  if (Array.isArray(l.log)) logBuf = l.log;
   let blocked = l.blocked;
   if (!blocked) blocked = await loadBundled();
   rebuildSets(blocked);
@@ -109,6 +129,9 @@ function persistState() {
 }
 
 function setState(patch) {
+  if (patch.status && patch.status !== state.status) {
+    log("Статус: " + patch.status + (patch.message ? " — " + patch.message : ""));
+  }
   state = { ...state, ...patch };
   persistState();
   chrome.action.setBadgeText({ text: state.status === "on" ? "ON" : state.status === "connecting" ? "…" : "" });
@@ -160,9 +183,9 @@ function parseDirect(input) {
   let u;
   try { u = new URL(input); } catch { return null; }
   const scheme = u.protocol.slice(0, -1);
-  const isProxyScheme = ["socks5", "socks4", "socks", "http"].includes(scheme);
-  const isHttpsProxy = scheme === "https" && (u.pathname === "/" || u.pathname === "") && !u.search;
-  if (!isProxyScheme && !isHttpsProxy) return null;
+  const bare = (u.pathname === "/" || u.pathname === "") && !u.search && !u.hash;
+  const isProxy = ["socks5", "socks4", "socks"].includes(scheme) || ((scheme === "http" || scheme === "https") && bare);
+  if (!isProxy) return null;
   if (!u.hostname || !u.port) return null;
   // Хост попадает в строку PAC, поэтому допускаем только безопасные символы.
   if (!/^(\[[0-9a-f:.]+\]|[a-z0-9]([a-z0-9.-]*[a-z0-9])?)$/i.test(u.hostname)) return null;
@@ -267,9 +290,10 @@ async function updateList() {
       ok++;
     } catch {}
   }
-  if (!ok) return { ok: false, error: "Не удалось скачать списки" };
+  if (!ok) { log("Списки блокировок: загрузка не удалась"); return { ok: false, error: "Не удалось скачать списки" }; }
   const list = [...all];
   listInfo = { count: list.length, updated: Date.now() };
+  log(`Списки блокировок обновлены: ${list.length} доменов`);
   await chrome.storage.local.set({ blocked: list, listInfo });
   rebuildSets(list);
   await applyProxy();
@@ -336,9 +360,14 @@ async function connect(auto = false) {
     if (port !== p) return;
     if (m.event === "stats") return onHostStats(m);
     if (m.event === "progress") return setState({ message: m.message });
-    if (m.event === "health") return setState({ health: { ok: !!m.ok, ms: m.ms || 0, message: m.message || "" } });
+    if (m.event === "servers") return saveServers(m.servers);
+    if (m.event === "health") {
+      log(m.ok ? `Проверка связи: ${m.ms} мс` : "Проверка связи не прошла: " + (m.message || ""));
+      return setState({ health: { ok: !!m.ok, ms: m.ms || 0, message: m.message || "" } });
+    }
     if (m.event === "started") {
       reconnects = 0;
+      log(`Хост запустил ядро: ${m.protocol}, локальный порт ${m.port}`);
       endpoint = `PROXY 127.0.0.1:${m.port}`;
       await chrome.storage.session.set({ auth: { user: m.user, pass: m.pass, host: "127.0.0.1", port: m.port } });
       setState({ status: "on", message: "Подключено", server: m.server });
@@ -354,6 +383,7 @@ async function connect(auto = false) {
     const missing = /not found|forbidden|not allowed/i.test(err);
     if (!missing && reconnects < RETRY_MS.length) {
       const d = RETRY_MS[reconnects++];
+      log(`Хост завершился${err ? ": " + err : ""}, повтор ${reconnects} из ${RETRY_MS.length}`);
       stopTick();
       setState({ status: "connecting", message: `Переподключение через ${d / 1000} с…`, health: null });
       reconnectTimer = setTimeout(() => connect(true), d);
@@ -365,10 +395,12 @@ async function connect(auto = false) {
         : "Хост завершился неожиданно" + (err ? " [" + err + "]" : "")
     );
   });
-  p.postMessage({ cmd: "start", url: input, port: 0 });
+  log("Запуск: " + (/^https?:/i.test(input) ? "подписка" : "ссылка " + input.split(":")[0]));
+  p.postMessage({ cmd: "start", url: input, port: 0, server: settings.server });
 }
 
 async function disconnect() {
+  log("Отключение");
   clearTimeout(reconnectTimer);
   reconnects = 0;
   setState({ status: "off", message: "", server: "", health: null });
@@ -381,7 +413,31 @@ async function disconnect() {
   await clearProxy();
 }
 
-const snapshot = () => ({ state, settings, traffic, speed, realStats, listInfo, listLocal: sets.blocked.size });
+function saveServers(list) {
+  servers = Array.isArray(list) ? list.map((s) => ({ name: String(s.name), type: String(s.type) })) : [];
+  chrome.storage.local.set({ servers });
+  log(`Серверов в подписке: ${servers.length}`);
+}
+
+async function listServers() {
+  const input = (settings.source || "").trim();
+  if (!input || parseDirect(input)) {
+    saveServers([]);
+    return { ok: true };
+  }
+  try {
+    const r = await chrome.runtime.sendNativeMessage(HOST, { cmd: "servers", url: input });
+    if (r && r.event === "servers") {
+      saveServers(r.servers);
+      return { ok: true };
+    }
+    return { ok: false, error: (r && r.message) || "Нет ответа от хоста" };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+const snapshot = () => ({ state, settings, traffic, speed, realStats, listInfo, listLocal: sets.blocked.size, servers });
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || msg.type === "state") return false;
@@ -392,12 +448,24 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       case "getState": return snapshot();
       case "connect": await connect(); return snapshot();
       case "disconnect": await disconnect(); return snapshot();
-      case "saveSettings":
-        settings = { ...settings, ...sanitize(msg.settings) };
+      case "listServers": return await listServers();
+      case "getLog": return logBuf;
+      case "clearLog":
+        logBuf = [];
+        await chrome.storage.local.set({ log: logBuf });
+        return [];
+      case "saveSettings": {
+        const patch = sanitize(msg.settings);
+        const changed = Object.keys(patch).filter((k) => settings[k] !== patch[k]);
+        if (changed.length) log("Настройки изменены: " + changed.join(", "));
+        const sourceChanged = changed.includes("source");
+        settings = { ...settings, ...patch };
+        if (sourceChanged) { settings.server = ""; saveServers([]); clearTimeout(listTimer); listTimer = setTimeout(listServers, 1500); }
         await chrome.storage.local.set({ settings });
         rebuildSets();
         await applyProxy();
         return snapshot();
+      }
       case "updateList": return await updateList();
       case "resetTraffic":
         traffic = { ...traffic, downTotal: 0, upTotal: 0, downSess: 0, upSess: 0 };
@@ -418,6 +486,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 // Прокси прошлой сессии указывает на мёртвый порт. При автоподключении с kill-switch держим блокировку, пока VPN не поднимется.
 chrome.runtime.onStartup.addListener(async () => {
   await boot;
+  log("Запуск браузера");
   disconnectHost();
   reconnects = 0;
   if (settings.autoConnect) {

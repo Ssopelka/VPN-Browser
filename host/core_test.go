@@ -60,7 +60,7 @@ func TestEndToEndShadowsocks(t *testing.T) {
 		fmt.Sprintf("ss://%s@localhost:%d#domain", userinfo, port), // имя сервера доменом
 	}
 	for _, l := range links {
-		c, err := startCore(l, 0, func(string) {})
+		c, err := startCore(l, 0, "", func(string) {})
 		if err != nil {
 			t.Fatalf("%s: %v", l, err)
 		}
@@ -100,7 +100,7 @@ func TestEndToEndShadowsocks(t *testing.T) {
 
 func TestProxyIsLoopbackOnly(t *testing.T) {
 	port, method, pass := startSSServer(t)
-	c, err := startCore(fmt.Sprintf("ss://%s@127.0.0.1:%d", base64.RawURLEncoding.EncodeToString([]byte(method+":"+pass)), port), 0, func(string) {})
+	c, err := startCore(fmt.Sprintf("ss://%s@127.0.0.1:%d", base64.RawURLEncoding.EncodeToString([]byte(method+":"+pass)), port), 0, "", func(string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,5 +112,22 @@ func TestProxyIsLoopbackOnly(t *testing.T) {
 		t.Log("health ok (есть выход в интернет)")
 	} else {
 		t.Log("health:", err, "(в песочнице без интернета это нормально)")
+	}
+}
+
+func TestSubscriptionServerChoice(t *testing.T) {
+	port, method, pass := startSSServer(t)
+	ui := base64.RawURLEncoding.EncodeToString([]byte(method + ":" + pass))
+	body := fmt.Sprintf("ss://%s@127.0.0.1:%d#first\nss://%s@127.0.0.1:%d#second\n", ui, port, ui, port)
+	sub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) }))
+	defer sub.Close()
+
+	c, err := startCore(sub.URL, 0, "second", func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.stop()
+	if c.Server != "second" || len(c.Servers) != 2 {
+		t.Fatalf("выбран %q, серверов %d", c.Server, len(c.Servers))
 	}
 }

@@ -83,17 +83,32 @@ func TestParseLinkErrors(t *testing.T) {
 	}
 }
 
-func TestSelectLink(t *testing.T) {
-	plain := "# comment\nfoo://x\nvless://id@h:443#a\nvless://id@h:443#b\n"
-	if l, err := selectLink(plain); err != nil || !strings.HasSuffix(l, "#a") {
-		t.Errorf("plain: %q %v", l, err)
+func TestSelectLinks(t *testing.T) {
+	plain := "# comment\nfoo://x\nvless://id@h:443#a\nvless://id@h2:443#b\n"
+	for name, body := range map[string]string{"plain": plain, "base64": base64.StdEncoding.EncodeToString([]byte(plain))} {
+		links, err := selectLinks(body)
+		if err != nil || len(links) != 2 || !strings.HasSuffix(links[0], "#a") || !strings.HasSuffix(links[1], "#b") {
+			t.Errorf("%s: %q %v", name, links, err)
+		}
 	}
-	b64 := base64.StdEncoding.EncodeToString([]byte(plain))
-	if l, err := selectLink(b64); err != nil || !strings.HasSuffix(l, "#a") {
-		t.Errorf("base64: %q %v", l, err)
-	}
-	if _, err := selectLink("nothing here"); err == nil {
+	if _, err := selectLinks("nothing here"); err == nil {
 		t.Error("ожидалась ошибка для подписки без ссылок")
+	}
+}
+
+func TestChooseServer(t *testing.T) {
+	servers := parseServers([]string{"vless://id@h:443#A", "broken", "trojan://p@t.example.com:443#B"})
+	if len(servers) != 2 {
+		t.Fatalf("ожидалось 2 сервера, получено %d", len(servers))
+	}
+	if s, _ := chooseServer(servers, "B"); s.Name != "B" || s.Type != "trojan" {
+		t.Errorf("выбор по имени: %+v", s)
+	}
+	if s, _ := chooseServer(servers, "нет такого"); s.Name != "A" {
+		t.Errorf("по умолчанию первый: %+v", s)
+	}
+	if _, ok := chooseServer(nil, ""); ok {
+		t.Error("пустой список не должен выбирать сервер")
 	}
 }
 

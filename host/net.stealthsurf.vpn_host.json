@@ -1,9 +1,0 @@
-{
-    "name":  "net.stealthsurf.vpn_host",
-    "description":  "VPN Terminal host",
-    "path":  "C:\\Users\\nikita\\Documents\\project\\VPN-Browser\\host\\host.bat",
-    "type":  "stdio",
-    "allowed_origins":  [
-                            "chrome-extension://aakkclmhpdfjajdbclhfaeodkbfpnakj/"
-                        ]
-}

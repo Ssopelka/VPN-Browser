@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "VPN Terminal",
+  "version": "2.0.0",
+  "description": "Весь трафик или только заблокированные в РФ ресурсы через VPN. Статистика трафика и замер скорости.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5vtwMF4TXPbzxzpsozZSb53zkWa2TUsh6o/cg0+vtpDU54PidHmjmvR2JzLJsJSVV+W/bMgE0wdmRaew+gj2CF9wPfvpKeahm0ATsITc4KbGwAMT9b/Rm6P5JDNtSVe9gb9mYF2H7XZRJl1V95vR6wZjFkrQMdEGKmC5HJt5Hq7vRvWBsVD4GfC0muEvyV0LdD+rRQc7/d0h8oujUnSUvUcHDkyt8+Uq05XHN6hC0pg1/Ef09NSrEwvjUbgl6Jrnatzvd7sc+Vl8jADhjNipruiBipWoiw7uZCfunFkX5gtMzkwXqtEoco8CLM4qgWI6zdk0gRBEx7H/huxbp8JApwIDAQAB",
+  "permissions": ["proxy", "storage", "nativeMessaging", "privacy", "webRequest", "webRequestAuthProvider"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "VPN Terminal",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+  }
+}

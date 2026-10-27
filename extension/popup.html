@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=360">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body class="off">
+  <canvas id="bg" aria-hidden="true"></canvas>
+
+  <main>
+    <header>
+      <div class="brand">
+        <img src="icons/icon48.png" alt="" width="26" height="26">
+        <h1>VPN TERMINAL</h1>
+      </div>
+      <div id="pill" class="pill"><i></i><span>ОФФЛАЙН</span></div>
+    </header>
+
+    <nav>
+      <button class="tab active" data-tab="home">Главная</button>
+      <button class="tab" data-tab="settings">Настройки</button>
+      <span class="tab-ink"></span>
+    </nav>
+
+    <section id="home" class="page active">
+      <div class="power-wrap">
+        <button id="power" aria-label="Подключить">
+          <svg class="rings" viewBox="0 0 160 160" aria-hidden="true">
+            <circle class="track" cx="80" cy="80" r="74"/>
+            <g class="spin"><circle class="dash" cx="80" cy="80" r="74"/></g>
+            <g class="spin-fast"><circle class="arc" cx="80" cy="80" r="74"/></g>
+          </svg>
+          <span class="pulse"></span><span class="pulse p2"></span>
+          <span class="core">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <div id="st" class="status">ОТКЛЮЧЕНО</div>
+      <div id="server" class="server"></div>
+      <div id="meta" class="meta"></div>
+
+      <div class="seg" id="modeSeg">
+        <button data-mode="all">Весь трафик</button>
+        <button data-mode="blocked">Блокировки РФ</button>
+        <span class="seg-ink"></span>
+      </div>
+
+      <div class="panel speed">
+        <div class="speed-row">
+          <div><span class="lbl"><b class="dn">↓</b> ЗАГРУЗКА</span><strong id="spdDown">0</strong><em id="spdDownU">Кбит/с</em></div>
+          <div><span class="lbl"><b class="upc">↑</b> ОТДАЧА</span><strong id="spdUp">0</strong><em id="spdUpU">Кбит/с</em></div>
+        </div>
+        <canvas id="graph" width="320" height="52"></canvas>
+      </div>
+
+      <div class="cards">
+        <div class="card"><span>ПОЛУЧЕНО</span><b id="down">0 Б</b></div>
+        <div class="card"><span>ОТПРАВЛЕНО</span><b id="up">0 Б</b></div>
+        <div class="card"><span>СЕССИЯ</span><b id="sess">0 Б</b></div>
+      </div>
+
+      <button id="speedBtn" class="ghost">Замерить скорость</button>
+      <div id="speedRes" class="speedres"></div>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="group">
+        <h3>Подключение</h3>
+        <label for="source">Источник</label>
+        <input id="source" spellcheck="false" autocomplete="off" placeholder="https://… / vless://… / hysteria2://…">
+        <div class="hint">ссылка-подписка · vless · vmess · trojan · ss · hysteria2 · hysteria · tuic · anytls · socks5://host:port · http(s)://host:port</div>
+        <label class="sw"><input type="checkbox" id="autoConnect"><i></i><span>Подключаться при запуске браузера</span></label>
+        <label class="sw"><input type="checkbox" id="killSwitch"><i></i><span>Kill-switch: не открывать сайты напрямую, если VPN упал</span></label>
+      </div>
+
+      <div class="group">
+        <h3>Защита</h3>
+        <label class="sw"><input type="checkbox" id="webrtc"><i></i><span>Блокировать утечку IP через WebRTC</span></label>
+        <label class="sw"><input type="checkbox" id="bypassLan"><i></i><span>Локальная сеть (192.168.*, 10.*) напрямую</span></label>
+      </div>
+
+      <div class="group">
+        <h3>Маршрутизация</h3>
+        <label for="include">Всегда через VPN</label>
+        <textarea id="include" rows="3" spellcheck="false" placeholder="example.com"></textarea>
+        <label for="exclude">Всегда напрямую</label>
+        <textarea id="exclude" rows="3" spellcheck="false" placeholder="yandex.ru&#10;sberbank.ru"></textarea>
+      </div>
+
+      <div class="group">
+        <h3>Список блокировок РФ</h3>
+        <label for="listUrls">Источники (по одному в строке)</label>
+        <textarea id="listUrls" rows="3" spellcheck="false"></textarea>
+        <label class="sw"><input type="checkbox" id="autoUpdate"><i></i><span>Обновлять раз в сутки</span></label>
+        <div class="row">
+          <button id="updList" class="ghost sm">Обновить</button>
+          <span id="listInfo" class="hint"></span>
+        </div>
+      </div>
+
+      <button id="resetTraffic" class="ghost sm danger">Сбросить счётчик трафика</button>
+    </section>
+  </main>
+  <script src="bg.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -37,7 +37,7 @@ go test -tags with_utls ./host
 GOOS=windows go build -trimpath -tags with_utls -ldflags "-s -w -H=windowsgui" -o VPN-Terminal-Setup.exe ./host
 ```
 
-Нужен Go 1.25 или новей. Тег `with_utls` обязателен для Reality. CI собирает установщики и публикует релиз при каждом push в `main`.
+Нужен Go 1.25 или новее. Тег `with_utls` обязателен для Reality. CI собирает установщики и публикует релиз при каждом push в `main`.
 
 ## Лицензия
 

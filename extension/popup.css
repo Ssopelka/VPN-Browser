@@ -44,7 +44,7 @@ body {
 
 body::before {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 10;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.38) 100%);
 }
 #veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); background: rgba(var(--dk), .2); }
 

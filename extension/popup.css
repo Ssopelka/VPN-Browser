@@ -42,10 +42,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 10;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.38) 100%);
-}
 #veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); background: rgba(var(--dk), .2); }
 
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
@@ -71,8 +67,7 @@ nav { position: relative; z-index: 8; display: flex; flex: none; border-radius: 
 }
 nav.s2 .tab-ink { transform: translateX(100%); }
 
-.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin: -12px -16px -12px -16px; padding: 18px 10px 22px 16px; overscroll-behavior: contain;
-  -webkit-mask-image: linear-gradient(transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); mask-image: linear-gradient(transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); }
+.page { display: none; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; margin: -12px -16px -12px -16px; padding: 18px 10px 22px 16px; overscroll-behavior: contain; }
 .page.active { display: block; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -107,7 +102,7 @@ body.connecting .spin-fast { animation: rot 1s linear infinite; }
   position: relative; width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center;
   background: radial-gradient(circle at 30% 22%, rgba(var(--hi),.42), rgba(var(--hi),.07) 36%, rgba(0,0,0,.45) 100%),
               radial-gradient(circle at 50% 62%, color-mix(in srgb, currentColor 22%, transparent), transparent 72%);
-  -webkit-backdrop-filter: blur(8px) saturate(180%); backdrop-filter: blur(8px) saturate(180%);
+  -webkit-backdrop-filter: blur(8px) saturate(180%); backdrop-filter: url(#lens) blur(8px) saturate(150%);
   border: 1px solid rgba(var(--hi),.38);
   box-shadow: inset 0 2px 2px rgba(var(--hi),.55), inset 0 -10px 18px rgba(0,0,0,.35);
   transition: box-shadow .4s, background .4s;
@@ -171,7 +166,7 @@ body.error .status { font-size: 12px; letter-spacing: 0; line-height: 1.4; }
   width: 100%; margin-top: 10px; padding: 11px; cursor: pointer; border-radius: 14px;
   font: inherit; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--g);
   background: var(--glass), linear-gradient(180deg, rgba(var(--rgb),.09), rgba(var(--rgb),.02));
-  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--lens);
   border: 1px solid rgba(var(--hi),.22); border-top-color: rgba(var(--hi),.4);
   box-shadow: var(--rim);
   transition: background .2s, color .2s, box-shadow .2s, transform .15s;
@@ -282,7 +277,6 @@ select option { background: #04120a; color: var(--soft); }
 .tab:focus, .tab:focus-visible, .seg button:focus, .seg button:focus-visible, .seg3 button:focus, .seg3 button:focus-visible, #power:focus-visible { outline: none; }
 
 body.simple { text-shadow: none; --blur: none; --lens: none; background: var(--bg1); }
-body.simple::before { display: none; }
 body.simple #bg { display: none; }
 body.simple .panel, body.simple .card, body.simple .group, body.simple nav, body.simple .seg {
   background: rgba(var(--rgb), .08); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; text-shadow: none;
@@ -299,3 +293,8 @@ body.simple .pulse { display: none; }
 body.simple h1, body.simple .status, body.simple .speed-row strong, body.simple .speed-row > div + div strong { text-shadow: none; }
 body.simple #serverList { -webkit-backdrop-filter: none; backdrop-filter: none; background: #06130c; }
 body.simple #veil { display: none; }
+
+main::before, main::after { content: ''; position: absolute; left: 0; right: 0; height: 14px; z-index: 6; pointer-events: none; }
+main::before { top: 96px; background: linear-gradient(color-mix(in srgb, var(--bg0) 55%, transparent), transparent); }
+main::after { bottom: 0; background: linear-gradient(transparent, color-mix(in srgb, var(--bg1) 60%, transparent)); }
+body.simple main::before, body.simple main::after { display: none; }

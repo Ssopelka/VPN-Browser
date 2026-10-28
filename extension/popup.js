@@ -575,3 +575,25 @@ send({ type: "getState" }).then(async (s) => {
     renderMeta();
   }, 500);
 });
+
+(() => {
+  const el = document.getElementById("lensMap");
+  if (!el) return;
+  const N = 192, c = document.createElement("canvas");
+  c.width = c.height = N;
+  const g = c.getContext("2d"), img = g.createImageData(N, N);
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const u = ((i + 0.5) / N) * 2 - 1, v = ((j + 0.5) / N) * 2 - 1;
+      const r2 = u * u + v * v;
+      const k = r2 >= 1 ? 0 : (1 - r2) * (1 - r2);
+      const o = (j * N + i) * 4;
+      img.data[o] = Math.round(127.5 - 127.5 * u * k);
+      img.data[o + 1] = Math.round(127.5 - 127.5 * v * k);
+      img.data[o + 2] = 128;
+      img.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  el.setAttribute("href", c.toDataURL("image/png"));
+})();
